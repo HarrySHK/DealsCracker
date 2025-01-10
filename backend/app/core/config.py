@@ -13,9 +13,20 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[AnyHttpUrl] = [
         "http://localhost:3000"
     ]
+    # Email sender
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 465
+    SMTP_USERNAME: str = "haris.g20499@iqra.edu.pk"
+    SMTP_PASSWORD: str = "xddjxuuhpuptnaqn"
+    EMAIL_SENDER: str = "haris.g20499@iqra.edu.pk"
+    EMAIL_FROM_NAME: str = "DealsCracker"    
     PROJECT_NAME: str = "FARMSTACK_CRUD"    
     # Database
     MONGO_CONNECTION_STRING: str = config("MONGO_CONNECTION_STRING", cast=str)    
+    # Cloudinary Creds
+    CLOUDINARY_CLOUD_NAME: str = config("CLOUDINARY_CLOUD_NAME", cast=str)    
+    CLOUDINARY_API_KEY: str = config("CLOUDINARY_API_KEY", cast=str)    
+    CLOUDINARY_API_SECRET: str = config("CLOUDINARY_API_SECRET", cast=str)    
     class Config:
         case_sensitive = True
         
