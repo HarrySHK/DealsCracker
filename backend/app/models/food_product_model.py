@@ -10,8 +10,6 @@ class FoodProduct(Document):
     product_url: HttpUrl = Field(..., description="URL of the product page")
     title: str = Field(..., min_length=1, description="Title of the product")
     description: Optional[str] = Field(None, description="Description of the product")
-    # original_price: Optional[str] = Field(None, description="Original price of the product")
-    # discount_price: Optional[str] = Field(None, description="Discounted price of the product")
     original_price: Optional[float] = Field(None, gt=0, description="Original price of the product")  # Changed to float
     discount_price: Optional[float] = Field(None, ge=0, description="Discounted price of the product")
     image_url: HttpUrl = Field(..., description="URL of the product image")

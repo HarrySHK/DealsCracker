@@ -1,6 +1,6 @@
 import pymongo.errors
 from fastapi import APIRouter, HTTPException,status, UploadFile, Depends, Form
-from app.schemas.user_schema import Signup, CreateProfile, ResetPasswordSchema
+from app.schemas.user_schema import Signup, CreateProfile, ResetPasswordSchema, UpdateProfile, Location
 from app.services.user_service import UserService
 from app.models.user_model import User
 from app.api.deps.user_deps import get_current_user
@@ -77,32 +77,6 @@ async def forget_password(request: ForgetPasswordRequest):
 class VerifyOtpRequest(BaseModel):
     code: str
 
-# @user_router.post("/verify-otp", summary="Verify OTP for password reset")
-# async def verify_otp(request: VerifyOtpRequest, current_user: User = Depends(get_current_user)):
-#     try:
-#         # Get the email from the user model using the current user's id
-#         print(f"User ID: {type(current_user.id)}")
-#         user = await User.find_one({"_id": ObjectId(current_user.id)})
-#         if not user:
-#             raise HTTPException(
-#                 status_code=status.HTTP_404_NOT_FOUND,
-#                 detail="User not found"
-#             )
-#         email = user.email 
-
-#         # Call the service to verify OTP
-#         result = await UserService.verify_otp(email=email, code=request.code)
-
-#         return result
-
-#     except HTTPException as e:
-#         raise e
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail="An unexpected error occurred. Please try again later."
-#         )
-
 @user_router.post("/verify-otp", summary="Verify OTP for password reset")
 async def verify_otp(request: VerifyOtpRequest, current_user: User = Depends(get_current_user)):
     try:
@@ -169,3 +143,45 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later."
         )
+
+@user_router.get("/get_profile", summary="Get user profile")
+async def get_profile(current_user: User = Depends(get_current_user)):
+    try:
+        # Call the service to fetch the user's profile
+        profile = await UserService.get_profile(user_id=str(current_user.id))
+        return {"profile": profile}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@user_router.put("/update_profile", summary="Update user profile")
+async def update_profile(
+    username: str = Form(None),
+    latitude: float = Form(None),
+    longitude: float = Form(None),
+    profilePicture: UploadFile = None,
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Create location object if latitude and longitude are provided
+        location = None
+        if latitude is not None and longitude is not None:
+            location = Location(latitude=latitude, longitude=longitude)
+        
+        # Prepare update data
+        update_data = UpdateProfile(username=username, location=location)
+        
+        # Call the service to update the profile
+        result = await UserService.update_profile(
+            user_id=str(current_user.id),
+            update_data=update_data,
+            profilePicture=profilePicture,
+        )
+        return result
+    except ValidationError as ve:
+        raise HTTPException(status_code=400, detail=ve.errors())
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")

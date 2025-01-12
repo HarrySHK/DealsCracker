@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, FieldValidationInfo
 from enum import Enum
 from app.models.user_model import Location, Role
+from typing import Optional
 
 
 class Signup(BaseModel):
@@ -50,6 +51,10 @@ class CreateProfile(BaseModel):
         if not v:
             raise ValueError('Location is required')
         return v
-    
+
+class UpdateProfile(BaseModel):
+    username: Optional[str] = None
+    location: Optional[Location] = None
+
 class ResetPasswordSchema(BaseModel):
     password: str = Field(..., min_length=8, description="New password with at least 8 characters.")

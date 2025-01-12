@@ -223,6 +223,12 @@ class ClothingService:
             await brand.save()
         brand_id = brand.id
 
+        def parse_price(price_str):
+            if price_str:
+                # Remove non-numeric characters and convert to float
+                return float(price_str.replace("PKR", "").replace(",", "").strip())
+            return None
+
         # Step 2: Scrape Alkaram sales data
         for page in range(1, num_pages + 1):
             url = f"{base_url}{page}"
@@ -259,10 +265,12 @@ class ClothingService:
                     sale_price_tag = price_div.find("ins")
 
                     if original_price_tag:
-                        product_info["original_price"] = original_price_tag.get_text(strip=True)
+                        # Convert original price to float
+                        product_info["original_price"] = parse_price(original_price_tag.get_text(strip=True))
 
                     if sale_price_tag:
-                        product_info["sale_price"] = sale_price_tag.get_text(strip=True)
+                        # Convert sale price to float
+                        product_info["sale_price"] = parse_price(sale_price_tag.get_text(strip=True))
 
                 image_tag = product.find("noscript")
                 if image_tag and image_tag.find("img"):
@@ -407,6 +415,17 @@ class ClothingService:
             await brand.save()
         brand_id = brand.id
 
+        def parse_price(price_str):
+            if price_str:
+                # Remove non-numeric prefixes like "From" and unwanted characters
+                cleaned_price = price_str.replace("PKR", "").replace(",", "").strip()
+                # Extract the first numeric portion using regular expressions
+                import re
+                match = re.search(r'\d+(\.\d+)?', cleaned_price)
+                if match:
+                    return float(match.group(0))  # Convert the first numeric match to float
+            return None
+
         # Step 2: Scrape Outfitters sales data
         for page in range(1, num_pages + 1):
             url = f"{base_url}{page}"
@@ -450,13 +469,15 @@ class ClothingService:
                     if original_price_tag:
                         money_tag = original_price_tag.find("span", class_="money")
                         if money_tag:
-                            product_info["original_price"] = money_tag.get_text(strip=True)
+                            # Parse original price as float
+                            product_info["original_price"] = parse_price(money_tag.get_text(strip=True))
 
                     sale_price_tag = price_div.find("span", class_="price-item--sale")
                     if sale_price_tag:
                         sales_price_value = sale_price_tag.get_text(strip=True)
                         clean_price = sales_price_value.split('-')[0]
-                        product_info["sale_price"] = clean_price
+                        # Parse sale price as float
+                        product_info["sale_price"] = parse_price(clean_price)
 
                 # Validation: Skip saving if any field is missing
                 if not all(product_info.values()):
@@ -507,6 +528,17 @@ class ClothingService:
             await brand.save()
         brand_id = brand.id
 
+        def parse_price(price_str):
+            if price_str:
+                # Remove non-numeric prefixes like "From" and unwanted characters
+                cleaned_price = price_str.replace("PKR", "").replace(",", "").strip()
+                # Extract the first numeric portion using regular expressions
+                import re
+                match = re.search(r'\d+(\.\d+)?', cleaned_price)
+                if match:
+                    return float(match.group(0))  # Convert the first numeric match to float
+            return None
+
         # Step 2: Scrape Saya sales data
         for page in range(1, num_pages + 1):
             url = f"{base_url}{page}"
@@ -555,8 +587,8 @@ class ClothingService:
                 if price_div:
                     price_spans = price_div.find_all("span", class_="money")
                     if len(price_spans) > 1:
-                        product_info["sale_price"] = price_spans[0].get_text(strip=True)
-                        product_info["original_price"] = price_spans[1].get_text(strip=True)
+                        product_info["sale_price"] = parse_price(price_spans[0].get_text(strip=True))
+                        product_info["original_price"] = parse_price(price_spans[1].get_text(strip=True))
 
                 # Validation: Skip saving if any field is missing
                 if not all(product_info.values()):
@@ -607,6 +639,17 @@ class ClothingService:
             await brand.save()
         brand_id = brand.id
 
+        def parse_price(price_str):
+            if price_str:
+                # Remove non-numeric prefixes like "From" and unwanted characters
+                cleaned_price = price_str.replace("PKR", "").replace(",", "").strip()
+                # Extract the first numeric portion using regular expressions
+                import re
+                match = re.search(r'\d+(\.\d+)?', cleaned_price)
+                if match:
+                    return float(match.group(0))  # Convert the first numeric match to float
+            return None
+
         # Step 2: Scrape Zeen sales data
         for page in range(1, num_pages + 1):
             url = f"{base_url}{page}"
@@ -651,11 +694,11 @@ class ClothingService:
                 if price_div:
                     original_price_tag = price_div.find("del")
                     if original_price_tag:
-                        product_info["original_price"] = original_price_tag.get_text(strip=True)
+                        product_info["original_price"] = parse_price(original_price_tag.get_text(strip=True))
 
                     sale_price_tag = price_div.find("ins")
                     if sale_price_tag:
-                        product_info["sale_price"] = sale_price_tag.get_text(strip=True)
+                        product_info["sale_price"] = parse_price(sale_price_tag.get_text(strip=True))
 
                 # Validation: Skip saving if any field is missing
                 if not all(product_info.values()):
@@ -1041,13 +1084,13 @@ class ClothingService:
 
 def schedule_clothing_scraping():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(ClothingService.getKhaadiData, "interval", minutes=1000, id="khaadi_scraping")
+    scheduler.add_job(ClothingService.getKhaadiData, "interval", minutes=10000, id="khaadi_scraping")
     scheduler.add_job(ClothingService.getDhanakData, "interval", minutes=1000, id="dhanak_scraping")
-    scheduler.add_job(ClothingService.getAlkaramData, "interval", minutes=17000, id="alkaram_scraping")
-    scheduler.add_job(ClothingService.getJjData, "interval", minutes=19000, id="jj_scraping")
-    scheduler.add_job(ClothingService.getOutfittersData, "interval", minutes=15000, id="outfitters_scraping")
-    scheduler.add_job(ClothingService.getSayaData, "interval", minutes=20000, id="saya_scraping")
-    scheduler.add_job(ClothingService.getZeenData, "interval", minutes=30000, id="zeen_scraping")
+    scheduler.add_job(ClothingService.getAlkaramData, "interval", minutes=1000, id="alkaram_scraping")
+    scheduler.add_job(ClothingService.getJjData, "interval", minutes=1000, id="jj_scraping")
+    scheduler.add_job(ClothingService.getOutfittersData, "interval", minutes=1000, id="outfitters_scraping")
+    scheduler.add_job(ClothingService.getSayaData, "interval", minutes=1000, id="saya_scraping")
+    scheduler.add_job(ClothingService.getZeenData, "interval", minutes=1000, id="zeen_scraping")
     scheduler.add_job(ClothingService.getKhaadiBanner, "interval", minutes=1000, id="khaadiBanner_scraping")
     scheduler.add_job(ClothingService.getDhanakBanner, "interval", minutes=1000, id="dhanakBanner_scraping")
     scheduler.add_job(ClothingService.getOutfittersBanner, "interval", minutes=1000, id="outfittersBanner_scraping")
