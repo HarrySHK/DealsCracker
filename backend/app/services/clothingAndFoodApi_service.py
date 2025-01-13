@@ -4,8 +4,8 @@ from app.models.clothing_product_model import ClothingProduct
 from app.models.food_product_model import FoodProduct
 from datetime import datetime, timedelta
 from googlemaps import Client as GoogleMapsClient
-
-GOOGLE_MAPS_API_KEY = "AIzaSyA87Mlrc7Ct2nPdEsQcaBAsCVS53PEqfs4"
+from app.core.config import settings
+from bson import ObjectId
 
 class ClothingAndFoodService:
     @staticmethod
@@ -101,6 +101,7 @@ class ClothingAndFoodService:
                             "original_price": 1,
                             "sale_price": 1,
                             "product_page": 1,
+                            "image_url": 1,
                             "brand_name": "$brand_info.brand_name",  # Extract brand_name from the brand_info
                             "discount_percentage": {"$round": ["$discount_percentage", 2]},
                         }
@@ -149,6 +150,7 @@ class ClothingAndFoodService:
                             "original_price": 1,
                             "discount_price": 1,  # Include discount_price even if it's null
                             "product_url": 1,
+                            "image_url": 1,
                             "brand_name": "$brand_info.brand_name",  # Extract brand_name from the food brand
                             "discount_percentage": 1,  # Include discount_percentage, which can be null
                         }
@@ -203,6 +205,7 @@ class ClothingAndFoodService:
                             "original_price": 1,
                             "sale_price": 1,
                             "product_page": 1,
+                            "image_url": 1,
                             "brand_name": "$brand_info.brand_name",  # Extract brand_name from the brand_info
                             "discount_percentage": {"$round": ["$discount_percentage", 2]},
                         }
@@ -251,6 +254,7 @@ class ClothingAndFoodService:
                             "original_price": 1,
                             "discount_price": 1,  # Include discount_price even if it's null
                             "product_url": 1,
+                            "image_url": 1,
                             "brand_name": "$brand_info.brand_name",  # Extract brand_name from the food brand
                             "discount_percentage": 1,  # Include discount_percentage, which can be null
                         }
@@ -280,7 +284,7 @@ class ClothingAndFoodService:
         if user_lat is None or user_lon is None:
             raise ValueError("Invalid user location.")
 
-        gmaps = GoogleMapsClient(key=GOOGLE_MAPS_API_KEY)
+        gmaps = GoogleMapsClient(key=settings.GOOGLE_MAPS_API_KEY)
 
         clothing_brands = await ClothingBrand.find_all().to_list()
         food_brands = await FoodBrand.find_all().to_list()
@@ -288,8 +292,10 @@ class ClothingAndFoodService:
         clothing_brand_names = [brand.brand_name for brand in clothing_brands]
         food_brand_names = [brand.brand_name for brand in food_brands]
 
-        nearby_outlets = []
+        clothing_outlets = []
+        food_outlets = []
 
+        # Fetch clothing outlets
         if category in ["clothing", "both"]:
             for brand in clothing_brand_names:
                 results = gmaps.places_nearby(
@@ -298,13 +304,19 @@ class ClothingAndFoodService:
                     keyword=brand
                 )
                 for result in results.get("results", []):
-                    nearby_outlets.append({
-                        "category": "clothing",
-                        "brand_name": brand,
-                        "address": result.get("vicinity"),
-                        "location": result.get("geometry", {}).get("location")
-                    })
+                    location = result.get("geometry", {}).get("location")
+                    if location:
+                        lat, lng = location["lat"], location["lng"]
+                        location_url = f"https://www.google.com/maps?q={lat},{lng}"
+                        clothing_outlets.append({
+                            "category": "clothing",
+                            "brand_name": brand,
+                            "address": result.get("vicinity"),
+                            "location": location,
+                            "locationUrl": location_url
+                        })
 
+        # Fetch food outlets
         if category in ["food", "both"]:
             for brand in food_brand_names:
                 results = gmaps.places_nearby(
@@ -313,12 +325,173 @@ class ClothingAndFoodService:
                     keyword=brand
                 )
                 for result in results.get("results", []):
-                    nearby_outlets.append({
-                        "category": "food",
-                        "brand_name": brand,
-                        "address": result.get("vicinity"),
-                        "location": result.get("geometry", {}).get("location")
-                    })
+                    location = result.get("geometry", {}).get("location")
+                    if location:
+                        lat, lng = location["lat"], location["lng"]
+                        location_url = f"https://www.google.com/maps?q={lat},{lng}"
+                        food_outlets.append({
+                            "category": "food",
+                            "brand_name": brand,
+                            "address": result.get("vicinity"),
+                            "location": location,
+                            "locationUrl": location_url
+                        })
+
+        # Interleave clothing and food outlets for "both" category
+        if category == "both":
+            nearby_outlets = []
+            max_len = max(len(clothing_outlets), len(food_outlets))
+            for i in range(max_len):
+                if i < len(clothing_outlets):
+                    nearby_outlets.append(clothing_outlets[i])
+                if i < len(food_outlets):
+                    nearby_outlets.append(food_outlets[i])
+        else:
+            nearby_outlets = clothing_outlets + food_outlets
 
         return nearby_outlets
+    
+    @staticmethod
+    async def get_top_trending_brands(category: str):
+        top_brands = []
+
+        try:
+            clothing_brands = []
+            food_brands = []
+
+            # Fetch top clothing brands by average discount percentage
+            if category in ["clothing", "both"]:
+                clothing_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "clothing_products",
+                            "localField": "_id",
+                            "foreignField": "brand_id.$id",
+                            "as": "products",
+                        }
+                    },
+                    {"$unwind": {"path": "$products", "preserveNullAndEmptyArrays": True}},
+                    {"$match": {"products.sale_price": {"$ne": None}, "products.original_price": {"$gt": 0}}},
+                    {
+                        "$addFields": {
+                            "discount_percentage": {
+                                "$multiply": [
+                                    {
+                                        "$divide": [
+                                            {"$subtract": ["$products.original_price", "$products.sale_price"]},
+                                            "$products.original_price",
+                                        ]
+                                    },
+                                    100,
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": "$_id",
+                            "brand_name": {"$first": "$brand_name"},
+                            "banner_image": {"$first": "$banner_image"},
+                            "avg_discount": {"$avg": "$discount_percentage"},
+                        }
+                    },
+                    {
+                        "$addFields": {
+                            "avg_discount": {
+                                "$round": ["$avg_discount", 0]  # Rounds to the nearest integer
+                            }
+                        }
+                    },
+                    {"$sort": {"avg_discount": -1}},
+                    {"$limit": 4},
+                ]
+
+                clothing_brands = await ClothingBrand.aggregate(clothing_pipeline).to_list()
+                for brand in clothing_brands:
+                    brand["_id"] = str(brand["_id"])  # Convert ObjectId to string
+
+            # Fetch top food brands by average deals percentage
+            if category in ["food", "both"]:
+                food_pipeline = [
+                    # Join food_products collection to get products for each brand
+                    {
+                        "$lookup": {
+                            "from": "food_products",
+                            "localField": "_id",
+                            "foreignField": "brand_id.$id",
+                            "as": "all_products",  # Join to get all products for the brand
+                        }
+                    },
+                    # Unwind the all_products array to calculate counts per product
+                    {"$unwind": {"path": "$all_products", "preserveNullAndEmptyArrays": True}},
+                    {
+                        "$group": {
+                            "_id": "$_id",  # Group by brand_id
+                            "brand_name": {"$first": "$brand_name"},
+                            "banner_image": {"$first": "$banner_image"},
+                            "deal_count": {
+                                "$sum": {
+                                    "$cond": [
+                                        {"$eq": ["$all_products.food_category", "Deal"]},  # Count only 'Deal' products
+                                        1,
+                                        0
+                                    ]
+                                }
+                            },
+                            "total_products": {"$sum": 1},  # Count total products (all categories)
+                        }
+                    },
+                    # Calculate the average deal percentage
+                    {
+                        "$addFields": {
+                            "avg_deal_percentage": {
+                                "$cond": {
+                                    "if": {"$eq": ["$total_products", 0]},  # Default to 0 if no products
+                                    "then": 0,
+                                    "else": {
+                                        "$multiply": [
+                                            {"$divide": ["$deal_count", "$total_products"]},
+                                            100
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "$addFields": {
+                            "avg_deal_percentage": {
+                                "$round": ["$avg_deal_percentage", 0]  # Rounds to the nearest integer
+                            }
+                        }
+                    },
+                    {
+                        "$sort": {"avg_deal_percentage": -1},  # Sort by avg_deal_percentage in descending order
+                    },
+                    {"$limit": 4}  # Optional: Limit to top 4 brands
+                ]
+
+                food_brands = await FoodBrand.aggregate(food_pipeline).to_list()
+                for brand in food_brands:
+                    brand["_id"] = str(brand["_id"])  # Convert ObjectId to string
+
+            # Alternate between clothing and food brands when category is "both"
+            if category == "both":
+                max_length = max(len(clothing_brands), len(food_brands))
+                for i in range(max_length):
+                    if i < len(clothing_brands):
+                        top_brands.append(clothing_brands[i])
+                    if i < len(food_brands):
+                        top_brands.append(food_brands[i])
+            else:
+                # If category is "clothing" or "food", just extend the respective list
+                top_brands.extend(clothing_brands if category == "clothing" else food_brands)
+
+            return top_brands
+        except Exception as e:
+            raise RuntimeError(f"Error fetching top trending brands: {str(e)}")
+
+
+
+
 
