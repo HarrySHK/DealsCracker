@@ -490,6 +490,90 @@ class ClothingAndFoodService:
             return top_brands
         except Exception as e:
             raise RuntimeError(f"Error fetching top trending brands: {str(e)}")
+    
+    @staticmethod
+    async def get_all_brands(category: str):
+        all_brands = []
+
+        try:
+            clothing_brands = []
+            food_brands = []
+
+            # Fetch all clothing brands with product counts
+            if category in ["clothing", "both"]:
+                clothing_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "clothing_products",
+                            "localField": "_id",
+                            "foreignField": "brand_id.$id",
+                            "as": "products",
+                        }
+                    },
+                    {
+                        "$addFields": {
+                            "products_count": {"$size": "$products"}  # Calculate the size of the array here
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "brand_name": 1,
+                            "products_count": 1,
+                        }
+                    },
+                    {"$sort": {"products_count": -1}},
+                ]
+
+
+                clothing_brands = await ClothingBrand.aggregate(clothing_pipeline).to_list()
+                for brand in clothing_brands:
+                    brand["_id"] = str(brand["_id"])  # Convert ObjectId to string
+
+            # Fetch all food brands with product counts
+            if category in ["food", "both"]:
+                food_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "food_products",
+                            "localField": "_id",
+                            "foreignField": "brand_id.$id",
+                            "as": "products",
+                        }
+                    },
+                    {
+                        "$addFields": {
+                            "products_count": {"$size": "$products"}  # Calculate the size of the array here
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "brand_name": 1,
+                            "products_count": 1,
+                        }
+                    },
+                    {"$sort": {"products_count": -1}},
+                ]
+
+
+                food_brands = await FoodBrand.aggregate(food_pipeline).to_list()
+                for brand in food_brands:
+                    brand["_id"] = str(brand["_id"])  # Convert ObjectId to string
+
+            # Alternate between clothing and food brands when category is "both"
+            result = {}
+            if category in ["clothing", "both"]:
+                result["clothingBrands"] = clothing_brands
+            if category in ["food", "both"]:
+                result["foodBrands"] = food_brands
+
+            return result
+        except Exception as e:
+            raise RuntimeError(f"Error fetching all brands: {str(e)}")
+
+
+        
 
 
 

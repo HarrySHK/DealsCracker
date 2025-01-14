@@ -69,7 +69,7 @@ async def get_todays_best_deals(
         )
     
 @clothing_and_food_router.get("/getTopTrendingBrands", summary="Get Top Tending Brands")
-async def get_todays_best_deals(
+async def get_top_trending_brands(
     category: str = Query(..., description="Category of deals to fetch (clothing, food, both)")
 ):
     try:
@@ -82,6 +82,27 @@ async def get_todays_best_deals(
 
         # Fetch deals
         result = await ClothingAndFoodService.get_top_trending_brands(category)
+        return result
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+    
+@clothing_and_food_router.get("/getAllBrands", summary="Get All Brands")
+async def get_top_trending_brands(
+    category: str = Query(..., description="Category of Brands to fetch (clothing, food, both)")
+):
+    try:
+        # Validate category
+        if category not in ["clothing", "food", "both"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid category. Must be one of: clothing, food, both"
+            )
+
+        # Fetch deals
+        result = await ClothingAndFoodService.get_all_brands(category)
         return result
     except RuntimeError as e:
         raise HTTPException(
