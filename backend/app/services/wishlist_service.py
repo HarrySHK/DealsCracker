@@ -12,13 +12,14 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 class WishlistService:
     @staticmethod
     async def toggle_wishlist(user_id: str, product_id: ObjectId):
-        # Check if the product is already in the user's wishlist
+        # Create references for checking the product type
         user_ref = DBRef("users", ObjectId(user_id))
-        product_ref_clothing = DBRef("clothing_products", product_id)
-        product_ref_food = DBRef("food_products", product_id)
 
         # Check if the product is already in the user's wishlist
-        existing_item = await Wishlist.find_one({"userId": user_ref, "productId": {"$in": [product_ref_clothing, product_ref_food]}})
+        existing_item = await Wishlist.find_one({
+            "userId": user_ref,
+            "productId.$id": product_id  # Match by product ID
+        })
 
         if existing_item:
             # If it exists, delete it (toggle off)
@@ -29,26 +30,52 @@ class WishlistService:
                 "productId": str(product_id),
             }
         else:
-            # Check if the product exists in either clothing or food products
-            product_exists = (
-                await ClothingProduct.find_one({"_id": product_id})
-                or await FoodProduct.find_one({"_id": product_id})
-            )
+            # Determine if the product is clothing or food
+            product = await ClothingProduct.find_one({"_id": product_id}) or await FoodProduct.find_one({"_id": product_id})
 
-            if not product_exists:
+            if not product:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Product not found"
                 )
 
-            # If it doesn't exist in the wishlist, add it (toggle on)
-            new_wishlist_item = Wishlist(userId=user_id, productId=product_id)
+            # Prepare lastKnownPrices based on product type and set the correct collection reference
+            if isinstance(product, ClothingProduct):
+                last_known_prices = {
+                    "original_price": product.original_price,
+                    "sale_price": product.sale_price
+                }
+                product_ref = DBRef("clothing_products", product_id)
+            elif isinstance(product, FoodProduct):
+                last_known_prices = {
+                    "original_price": product.original_price,
+                    "discount_price": product.discount_price
+                }
+                product_ref = DBRef("food_products", product_id)
+            else:
+                last_known_prices = {}
+                product_ref = None
+
+            # Ensure the product reference is not None
+            if not product_ref:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid product reference"
+                )
+
+            # Create a new wishlist item with price details and correct product reference
+            new_wishlist_item = Wishlist(
+                userId=user_ref,
+                productId=product_ref,
+                lastKnownPrices=last_known_prices
+            )
             await new_wishlist_item.insert()
 
             return {
                 "message": "Product added to wishlist",
                 "wishlistItemId": str(new_wishlist_item.id),
                 "productId": str(product_id),
+                "lastKnownPrices": last_known_prices,
             }
     
     @staticmethod
@@ -107,7 +134,8 @@ class WishlistService:
                             "Food"
                         ]
                     },
-                    "createdAt": 1 
+                    "createdAt": 1 ,
+                    "lastKnownPrices": 1 
                 }
             }
         ]
@@ -141,26 +169,26 @@ class WishlistService:
 
                 # Check for price changes
                 if isinstance(product, ClothingProduct):
-                    if not wishlist_item.last_known_price:
-                        wishlist_item.last_known_price = {"original_price": product.original_price, "sale_price": product.sale_price}
+                    if not wishlist_item.lastKnownPrices:
+                        wishlist_item.lastKnownPrices = {"original_price": product.original_price, "sale_price": product.sale_price}
 
-                    if product.original_price != wishlist_item.last_known_price.get("original_price"):
+                    if product.original_price != wishlist_item.lastKnownPrices.get("original_price"):
                         price_changed = True
-                        price_details += f"Original Price updated from {wishlist_item.last_known_price.get('original_price')} to {product.original_price}\n"
-                    if product.sale_price != wishlist_item.last_known_price.get("sale_price"):
+                        price_details += f"Original Price updated from {wishlist_item.lastKnownPrices.get('original_price')} to {product.original_price}\n"
+                    if product.sale_price != wishlist_item.lastKnownPrices.get("sale_price"):
                         price_changed = True
-                        price_details += f"Sale Price updated from {wishlist_item.last_known_price.get('sale_price')} to {product.sale_price}\n"
+                        price_details += f"Sale Price updated from {wishlist_item.lastKnownPrices.get('sale_price')} to {product.sale_price}\n"
 
                 elif isinstance(product, FoodProduct):
-                    if not wishlist_item.last_known_price:
-                        wishlist_item.last_known_price = {"original_price": product.original_price, "discount_price": product.discount_price}
+                    if not wishlist_item.lastKnownPrices:
+                        wishlist_item.lastKnownPrices = {"original_price": product.original_price, "discount_price": product.discount_price}
 
-                    if product.original_price != wishlist_item.last_known_price.get("original_price"):
+                    if product.original_price != wishlist_item.lastKnownPrices.get("original_price"):
                         price_changed = True
-                        price_details += f"Original Price updated from {wishlist_item.last_known_price.get('original_price')} to {product.original_price}\n"
-                    if product.discount_price != wishlist_item.last_known_price.get("discount_price"):
+                        price_details += f"Original Price updated from {wishlist_item.lastKnownPrices.get('original_price')} to {product.original_price}\n"
+                    if product.discount_price != wishlist_item.lastKnownPrices.get("discount_price"):
                         price_changed = True
-                        price_details += f"Discount Price updated from {wishlist_item.last_known_price.get('discount_price')} to {product.discount_price}\n"
+                        price_details += f"Discount Price updated from {wishlist_item.lastKnownPrices.get('discount_price')} to {product.discount_price}\n"
 
                 # Send email if price changed
                 if price_changed:
@@ -175,7 +203,7 @@ class WishlistService:
                     await send_email(user.email, subject, body)
 
                     # Update the last known price
-                    wishlist_item.last_known_price = {
+                    wishlist_item.lastKnownPrices = {
                         "original_price": getattr(product, "original_price", None),
                         "sale_price": getattr(product, "sale_price", None),
                         "discount_price": getattr(product, "discount_price", None),
@@ -186,7 +214,6 @@ class WishlistService:
                 print(f"Error processing wishlist item {wishlist_item.id}: {e}")
 
         return {"message": "Wishlist updates processed and emails sent if needed"}
-
 
 
 def schedule_wishlist():

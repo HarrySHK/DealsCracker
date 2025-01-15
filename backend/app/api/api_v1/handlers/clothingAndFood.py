@@ -110,6 +110,104 @@ async def get_top_trending_brands(
             detail=str(e)
         )
     
+# @clothing_and_food_router.get("/getAllProducts", summary="Get All Products")
+# async def get_all_products(
+#     category: str = Query(
+#         None, 
+#         description="Category of products to fetch (clothing, food, or both)"
+#     ),
+#     page: int = Query(
+#         1, 
+#         description="Page number for pagination (default is 1)"
+#     ),
+#     limit: int = Query(
+#         10, 
+#         description="Number of items per page for pagination (default is 10)"
+#     ),
+#     search: str = Query(
+#         None, 
+#         description="Search query to filter products by title or brand name"
+#     ),
+#     brand_name: str = Query(
+#         None, 
+#         description="Filter products by brand name (case-insensitive)"
+#     ),
+# ):
+#     try:
+#         # Validate category input
+#         if category not in [None, "clothing", "food", "both"]:
+#             raise HTTPException(
+#                 status_code=status.HTTP_400_BAD_REQUEST,
+#                 detail="Invalid category. Must be one of: clothing, food, or both."
+#             )
+
+#         # Fetch products from the service
+#         result = await ClothingAndFoodService.get_all_products(
+#             category=category,
+#             page=page,
+#             limit=limit,
+#             search=search,
+#             brand_name=brand_name
+#         )
+#         return result
+#     except RuntimeError as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=str(e)
+#         )
+
+@clothing_and_food_router.get("/getAllProducts", summary="Get All Products")
+async def get_all_products(
+    category: str = Query(
+        None,
+        description="Category of products to fetch (clothing, food, or both)"
+    ),
+    page: int = Query(
+        1,
+        description="Page number for pagination (default is 1)"
+    ),
+    limit: int = Query(
+        10,
+        description="Number of items per page for pagination (default is 10)"
+    ),
+    search: str = Query(
+        None,
+        description="Search query to filter products by title or brand name"
+    ),
+    brand_name: str = Query(
+        None,
+        description="Filter products by brand name (case-insensitive)"
+    ),
+    latest: bool = Query(
+        True,
+        description="Sort products by created date (True for latest first, False for oldest first)"
+    ),
+):
+    try:
+        # Validate category input
+        if category not in [None, "clothing", "food", "both"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid category. Must be one of: clothing, food, or both."
+            )
+
+        # Fetch products from the service
+        result = await ClothingAndFoodService.get_all_products(
+            category=category,
+            page=page,
+            limit=limit,
+            search=search,
+            brand_name=brand_name,
+            latest=latest
+        )
+        return result
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+    
 @clothing_and_food_router.get("/getNearbyOutlets", summary="Get nearby outlets")
 async def get_nearby_outlets(category: str, current_user: User = Depends(get_current_user)):
     try:

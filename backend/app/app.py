@@ -14,6 +14,9 @@ from app.services.clothing_service import schedule_clothing_scraping
 from app.services.food_service import schedule_food_scraping
 from app.services.wishlist_service import schedule_wishlist
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+
+logging.getLogger("apscheduler").setLevel(logging.ERROR)
 
 app = FastAPI(
     title = settings.PROJECT_NAME,
