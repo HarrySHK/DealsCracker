@@ -109,52 +109,6 @@ async def get_top_trending_brands(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
-    
-# @clothing_and_food_router.get("/getAllProducts", summary="Get All Products")
-# async def get_all_products(
-#     category: str = Query(
-#         None, 
-#         description="Category of products to fetch (clothing, food, or both)"
-#     ),
-#     page: int = Query(
-#         1, 
-#         description="Page number for pagination (default is 1)"
-#     ),
-#     limit: int = Query(
-#         10, 
-#         description="Number of items per page for pagination (default is 10)"
-#     ),
-#     search: str = Query(
-#         None, 
-#         description="Search query to filter products by title or brand name"
-#     ),
-#     brand_name: str = Query(
-#         None, 
-#         description="Filter products by brand name (case-insensitive)"
-#     ),
-# ):
-#     try:
-#         # Validate category input
-#         if category not in [None, "clothing", "food", "both"]:
-#             raise HTTPException(
-#                 status_code=status.HTTP_400_BAD_REQUEST,
-#                 detail="Invalid category. Must be one of: clothing, food, or both."
-#             )
-
-#         # Fetch products from the service
-#         result = await ClothingAndFoodService.get_all_products(
-#             category=category,
-#             page=page,
-#             limit=limit,
-#             search=search,
-#             brand_name=brand_name
-#         )
-#         return result
-#     except RuntimeError as e:
-#         raise HTTPException(
-#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             detail=str(e)
-#         )
 
 @clothing_and_food_router.get("/getAllProducts", summary="Get All Products")
 async def get_all_products(
@@ -182,6 +136,10 @@ async def get_all_products(
         True,
         description="Sort products by created date (True for latest first, False for oldest first)"
     ),
+    sortPrice: str = Query(
+        None,
+        description="Sort products by price (ascending or descending)"
+    ),
 ):
     try:
         # Validate category input
@@ -189,6 +147,11 @@ async def get_all_products(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid category. Must be one of: clothing, food, or both."
+            )
+        if sortPrice and sortPrice not in ["ascending", "descending"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid sortPrice. Must be one of: ascending, descending."
             )
 
         # Fetch products from the service
@@ -198,7 +161,8 @@ async def get_all_products(
             limit=limit,
             search=search,
             brand_name=brand_name,
-            latest=latest
+            latest=latest,
+            sortPrice=sortPrice
         )
         return result
     except RuntimeError as e:

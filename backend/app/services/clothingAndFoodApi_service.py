@@ -492,201 +492,73 @@ class ClothingAndFoodService:
         except Exception as e:
             raise RuntimeError(f"Error fetching top trending brands: {str(e)}")
     
-    # @staticmethod
-    # async def get_all_products(
-    #     category: str = None,  # Can be "food", "clothing", or "both"
-    #     page: int = 1,
-    #     limit: int = 10,
-    #     search: str = None,
-    #     brand_name: str = None,
-    # ):
-    #     try:
-    #         # Validate inputs
-    #         if page < 1:
-    #             page = 1
-    #         if limit < 1:
-    #             limit = 10
 
-    #         # Calculate the number of documents to skip
-    #         skip = (page - 1) * limit
-
-    #         # Build filters for search and brand name
-    #         match_conditions = []
-    #         if search:
-    #             match_conditions.append({
-    #                 "$or": [
-    #                     {"title": {"$regex": search, "$options": "i"}},  # Case-insensitive search in title
-    #                     {"brand_info.brand_name": {"$regex": search, "$options": "i"}}  # Case-insensitive search in brand name
-    #                 ]
-    #             })
-    #         if brand_name:
-    #             match_conditions.append({
-    #                 "brand_info.brand_name": {"$regex": brand_name, "$options": "i"}  # Case-insensitive exact brand name match
-    #             })
-
-    #         # Combine conditions
-    #         match_stage = {"$and": match_conditions} if match_conditions else None
-
-    #         # Aggregation pipelines for clothing and food products
-    #         def create_pipeline(collection_name, category_name):
-    #             pipeline = [
-    #                 {
-    #                     "$addFields": {
-    #                         "brand_id": {"$ifNull": ["$brand_id.$id", None]}
-    #                     }
-    #                 },
-    #                 {
-    #                     "$lookup": {
-    #                         "from": collection_name,
-    #                         "localField": "brand_id",
-    #                         "foreignField": "_id",
-    #                         "as": "brand_info"
-    #                     }
-    #                 },
-    #                 {"$unwind": "$brand_info"},
-    #             ]
-    #             if match_stage:  # Add filters only if match_stage is not empty
-    #                 pipeline.append({"$match": match_stage})
-    #             pipeline.append({
-    #                 "$project": {
-    #                     "_id": {"$toString": "$_id"},
-    #                     "title": 1,
-    #                     "product_page": 1,
-    #                     "product_url": 1,
-    #                     "image_url": 1,
-    #                     "original_price": 1,
-    #                     "sale_price": 1 if category_name == "clothing" else None,
-    #                     "discount_price": 1 if category_name == "food" else None,
-    #                     "category": {"$literal": category_name},
-    #                     "brand_name": "$brand_info.brand_name",
-    #                     "isWishlist": {"$literal": False}
-    #                 }
-    #             })
-    #             pipeline.append({
-    #                 "$facet": {
-    #                     "metadata": [{"$count": "total"}],
-    #                     "data": [
-    #                         {"$skip": skip},
-    #                         {"$limit": limit}
-    #                     ]
-    #                 }
-    #             })
-    #             return pipeline
-
-    #         # Build separate pipelines for clothing and food
-    #         clothing_pipeline = create_pipeline("clothing_brands", "clothing") if category in ["clothing", "both"] else []
-    #         food_pipeline = create_pipeline("food_brands", "food") if category in ["food", "both"] else []
-
-    #         # Combine pipelines based on category
-    #         if category == "clothing":
-    #             pipeline = clothing_pipeline
-    #             result = await ClothingProduct.aggregate(pipeline).to_list()
-    #         elif category == "food":
-    #             pipeline = food_pipeline
-    #             result = await FoodProduct.aggregate(pipeline).to_list()
-    #         elif category == "both":
-    #             # Retrieve clothing and food results
-    #             clothing_result = await ClothingProduct.aggregate(clothing_pipeline).to_list()
-    #             food_result = await FoodProduct.aggregate(food_pipeline).to_list()
-
-    #             # Get the total counts for both categories
-    #             clothing_metadata = clothing_result[0]["metadata"] if clothing_result else []
-    #             food_metadata = food_result[0]["metadata"] if food_result else []
-                
-    #             total_clothing_items = clothing_metadata[0]["total"] if clothing_metadata else 0
-    #             total_food_items = food_metadata[0]["total"] if food_metadata else 0
-                
-    #             total_items = total_clothing_items + total_food_items
-
-    #             # Calculate total pages for both categories
-    #             total_clothing_pages = ceil(total_clothing_items / limit) if total_clothing_items > 0 else 0
-    #             total_food_pages = ceil(total_food_items / limit) if total_food_items > 0 else 0
-    #             total_pages = total_clothing_pages + total_food_pages
-
-    #             # Interlace clothing and food results
-    #             combined_result = []
-    #             max_len = max(len(clothing_result[0]["data"]), len(food_result[0]["data"]))
-
-    #             for i in range(max_len):
-    #                 if i < len(clothing_result[0]["data"]):
-    #                     combined_result.append(clothing_result[0]["data"][i])
-    #                 if i < len(food_result[0]["data"]):
-    #                     combined_result.append(food_result[0]["data"][i])
-
-    #             # Pagination for combined results
-    #             skip = (page - 1) * limit
-    #             paginated_data = combined_result[skip: skip + limit]
-
-    #             return {
-    #                 "currentPage": page,
-    #                 "totalPages": total_pages,
-    #                 "totalItems": total_items,
-    #                 "products": paginated_data
-    #             }
-
-    #         # Handle results for a single category
-    #         metadata = result[0]["metadata"] if result and "metadata" in result[0] else []
-    #         data = result[0]["data"] if result and "data" in result[0] else []
-
-    #         # Calculate total pages
-    #         total = metadata[0]["total"] if metadata else 0
-    #         total_pages = ceil(total / limit)
-
-    #         return {
-    #             "currentPage": page,
-    #             "totalPages": total_pages,
-    #             "totalItems": total,
-    #             "products": data
-    #         }
-
-    #     except Exception as e:
-    #         raise RuntimeError(f"An error occurred while retrieving products: {str(e)}")
-    
     @staticmethod
     async def get_all_products(
-        category: str = None,  # Can be "food", "clothing", or "both"
+        category: str = None,
         page: int = 1,
         limit: int = 10,
         search: str = None,
         brand_name: str = None,
-        latest: bool = True,  # Sort order for createdAt or created_at field
+        latest: bool = True,
+        sortPrice: str = None,
     ):
         try:
-            # Validate inputs
+            # Input validation
             if page < 1:
                 page = 1
             if limit < 1:
                 limit = 10
+            if sortPrice not in [None, "ascending", "descending"]:
+                raise ValueError("Invalid sortPrice. Must be 'ascending' or 'descending'.")
 
-            # Calculate the number of documents to skip
+            # Calculate skip
             skip = (page - 1) * limit
 
-            # Build filters for search and brand name
+            # Build match conditions
             match_conditions = []
             if search:
                 match_conditions.append({
                     "$or": [
-                        {"title": {"$regex": search, "$options": "i"}},  # Case-insensitive search in title
-                        {"brand_info.brand_name": {"$regex": search, "$options": "i"}}  # Case-insensitive search in brand name
+                        {"title": {"$regex": search, "$options": "i"}},
+                        {"brand_info.brand_name": {"$regex": search, "$options": "i"}}
                     ]
                 })
             if brand_name:
                 match_conditions.append({
-                    "brand_info.brand_name": {"$regex": brand_name, "$options": "i"}  # Case-insensitive exact brand name match
+                    "brand_info.brand_name": {"$regex": brand_name, "$options": "i"}
                 })
 
-            # Combine conditions
-            match_stage = {"$and": match_conditions} if match_conditions else None
+            match_stage = {"$and": match_conditions} if match_conditions else {}
 
-            # Define sort stage for created_at/createdAt
-            sort_order = -1 if latest else 1
+            async def get_paginated_data(collection, pipeline, skip_val, limit_val):
+                # Add pagination stages
+                pipeline.extend([
+                    {"$skip": skip_val},
+                    {"$limit": limit_val}
+                ])
+                return await collection.aggregate(pipeline).to_list(length=None)
 
-            # Aggregation pipelines for clothing and food products
-            def create_pipeline(collection_name, category_name, date_field):
+            async def get_total_count(collection, pipeline):
+                count_pipeline = pipeline.copy()
+                count_pipeline.append({"$count": "total"})
+                result = await collection.aggregate(count_pipeline).to_list(length=None)
+                return result[0]["total"] if result else 0
+
+            def create_base_pipeline(collection_name, category_name, date_field):
+                price_sort_order = 1 if sortPrice == "ascending" else -1 if sortPrice == "descending" else None
+                
                 pipeline = [
                     {
                         "$addFields": {
-                            "brand_id": {"$ifNull": ["$brand_id.$id", None]}
+                            "brand_id": {"$ifNull": ["$brand_id.$id", None]},
+                            "price": {
+                                "$cond": [
+                                    {"$eq": [category_name, "clothing"]},
+                                    {"$ifNull": ["$sale_price", "$original_price"]},
+                                    {"$ifNull": ["$discount_price", "$original_price"]}
+                                ]
+                            }
                         }
                     },
                     {
@@ -698,96 +570,92 @@ class ClothingAndFoodService:
                         }
                     },
                     {"$unwind": "$brand_info"},
+                    {"$match": match_stage} if match_conditions else {"$match": {}},
+                    {"$sort": {"price": price_sort_order}} if price_sort_order is not None 
+                    else {"$sort": {date_field: -1 if latest else 1}},
+                    {
+                        "$project": {
+                            "_id": {"$toString": "$_id"},
+                            "title": 1,
+                            "product_page": 1,
+                            "product_url": 1,
+                            "image_url": 1,
+                            "original_price": 1,
+                            "sale_price": 1 if category_name == "clothing" else None,
+                            "discount_price": 1 if category_name == "food" else None,
+                            "category": {"$literal": category_name},
+                            "brand_name": "$brand_info.brand_name",
+                            "price": 1,
+                            "isWishlist": {"$literal": False}
+                        }
+                    }
                 ]
-                if match_stage:  # Add filters only if match_stage is not empty
-                    pipeline.append({"$match": match_stage})
-                pipeline.append({"$sort": {date_field: sort_order}})  # Add sort stage
-                pipeline.append({
-                    "$project": {
-                        "_id": {"$toString": "$_id"},
-                        "title": 1,
-                        "product_page": 1,
-                        "product_url": 1,
-                        "image_url": 1,
-                        "original_price": 1,
-                        "sale_price": 1 if category_name == "clothing" else None,
-                        "discount_price": 1 if category_name == "food" else None,
-                        "category": {"$literal": category_name},
-                        "brand_name": "$brand_info.brand_name",
-                        "isWishlist": {"$literal": False}
-                    }
-                })
-                pipeline.append({
-                    "$facet": {
-                        "metadata": [{"$count": "total"}],
-                        "data": [
-                            {"$skip": skip},
-                            {"$limit": limit}
-                        ]
-                    }
-                })
                 return pipeline
 
-            # Build separate pipelines for clothing and food
-            clothing_pipeline = create_pipeline("clothing_brands", "clothing", "created_at") if category in ["clothing", "both"] else []
-            food_pipeline = create_pipeline("food_brands", "food", "createdAt") if category in ["food", "both"] else []
-
-            # Combine pipelines based on category
-            if category == "clothing":
-                pipeline = clothing_pipeline
-                result = await ClothingProduct.aggregate(pipeline).to_list()
-            elif category == "food":
-                pipeline = food_pipeline
-                result = await FoodProduct.aggregate(pipeline).to_list()
+            if category in ["clothing", "food"]:
+                collection = ClothingProduct if category == "clothing" else FoodProduct
+                date_field = "created_at" if category == "clothing" else "createdAt"
+                
+                pipeline = create_base_pipeline(f"{category}_brands", category, date_field)
+                total = await get_total_count(collection, pipeline)
+                data = await get_paginated_data(collection, pipeline, skip, limit)
+                
             elif category == "both":
-                # Retrieve clothing and food results
-                clothing_result = await ClothingProduct.aggregate(clothing_pipeline).to_list()
-                food_result = await FoodProduct.aggregate(food_pipeline).to_list()
+                # Create pipelines for both collections
+                clothing_pipeline = create_base_pipeline("clothing_brands", "clothing", "created_at")
+                food_pipeline = create_base_pipeline("food_brands", "food", "createdAt")
 
-                # Combine and paginate results
-                combined_result = []
-                max_len = max(len(clothing_result[0]["data"]), len(food_result[0]["data"])) if clothing_result and food_result else 0
+                # Get counts
+                clothing_count = await get_total_count(ClothingProduct, clothing_pipeline)
+                food_count = await get_total_count(FoodProduct, food_pipeline)
+                total = clothing_count + food_count
 
-                for i in range(max_len):
-                    if clothing_result and i < len(clothing_result[0]["data"]):
-                        combined_result.append(clothing_result[0]["data"][i])
-                    if food_result and i < len(food_result[0]["data"]):
-                        combined_result.append(food_result[0]["data"][i])
+                # Calculate pagination for each collection
+                half_limit = limit // 2
+                remainder = limit % 2
 
-                # Pagination for combined results
-                skip = (page - 1) * limit
-                paginated_data = combined_result[skip: skip + limit]
+                # Get paginated data from both collections
+                clothing_data = await get_paginated_data(
+                    ClothingProduct, 
+                    clothing_pipeline, 
+                    skip // 2, 
+                    half_limit + (remainder if skip % 2 == 0 else 0)
+                )
+                
+                food_data = await get_paginated_data(
+                    FoodProduct, 
+                    food_pipeline, 
+                    skip // 2, 
+                    half_limit + (remainder if skip % 2 == 1 else 0)
+                )
 
-                total_clothing_items = clothing_result[0]["metadata"][0]["total"] if clothing_result and clothing_result[0]["metadata"] else 0
-                total_food_items = food_result[0]["metadata"][0]["total"] if food_result and food_result[0]["metadata"] else 0
+                # Combine and sort if needed
+                data = []
+                c_idx, f_idx = 0, 0
+                
+                while len(data) < limit and (c_idx < len(clothing_data) or f_idx < len(food_data)):
+                    if c_idx < len(clothing_data):
+                        data.append(clothing_data[c_idx])
+                        c_idx += 1
+                    if f_idx < len(food_data) and len(data) < limit:
+                        data.append(food_data[f_idx])
+                        f_idx += 1
 
-                return {
-                    "currentPage": page,
-                    "totalPages": ceil((total_clothing_items + total_food_items) / limit),
-                    "totalItems": total_clothing_items + total_food_items,
-                    "products": paginated_data
-                }
-
-            # Handle results for a single category
-            metadata = result[0]["metadata"] if result and "metadata" in result[0] else []
-            data = result[0]["data"] if result and "data" in result[0] else []
-
-            # Calculate total pages
-            total = metadata[0]["total"] if metadata else 0
-            total_pages = ceil(total / limit)
+                if sortPrice:
+                    data.sort(
+                        key=lambda x: x["price"],
+                        reverse=(sortPrice == "descending")
+                    )
+            else:
+                raise ValueError("Invalid category. Must be 'clothing', 'food', or 'both'.")
 
             return {
                 "currentPage": page,
-                "totalPages": total_pages,
+                "totalPages": ceil(total / limit),
                 "totalItems": total,
                 "products": data
             }
 
         except Exception as e:
             raise RuntimeError(f"An error occurred while retrieving products: {str(e)}")
-
-
-
-
-
 
