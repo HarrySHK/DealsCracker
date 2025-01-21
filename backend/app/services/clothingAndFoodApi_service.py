@@ -3,10 +3,12 @@ from app.models.clothing_brand_model import ClothingBrand
 from app.models.food_brand_model import FoodBrand
 from app.models.clothing_product_model import ClothingProduct
 from app.models.food_product_model import FoodProduct
+from app.models.wishlist_model import Wishlist
 from datetime import datetime, timedelta
 from googlemaps import Client as GoogleMapsClient
 from app.core.config import settings
-from bson import ObjectId
+from bson import ObjectId, DBRef
+from beanie.odm.fields import Link
 
 class ClothingAndFoodService:
     @staticmethod
@@ -491,7 +493,6 @@ class ClothingAndFoodService:
             return top_brands
         except Exception as e:
             raise RuntimeError(f"Error fetching top trending brands: {str(e)}")
-    
 
     @staticmethod
     async def get_all_products(
@@ -502,6 +503,8 @@ class ClothingAndFoodService:
         brand_name: str = None,
         latest: bool = True,
         sortPrice: str = None,
+        maxPrice: float = None,
+        food_category: str = None,  # Added food_category parameter
     ):
         try:
             # Input validation
@@ -511,6 +514,8 @@ class ClothingAndFoodService:
                 limit = 10
             if sortPrice not in [None, "ascending", "descending"]:
                 raise ValueError("Invalid sortPrice. Must be 'ascending' or 'descending'.")
+            if maxPrice is not None and maxPrice < 0:
+                raise ValueError("Invalid maxPrice. Must be a non-negative number.")
 
             # Calculate skip
             skip = (page - 1) * limit
@@ -527,6 +532,18 @@ class ClothingAndFoodService:
             if brand_name:
                 match_conditions.append({
                     "brand_info.brand_name": {"$regex": brand_name, "$options": "i"}
+                })
+            if maxPrice is not None:
+                match_conditions.append({
+                    "$or": [
+                        {"original_price": {"$lte": maxPrice}},
+                        {"sale_price": {"$lte": maxPrice}},
+                        {"discount_price": {"$lte": maxPrice}}
+                    ]
+                })
+            if food_category and category == "food":  # Apply food_category filter only for food
+                match_conditions.append({
+                    "food_category": {"$regex": food_category, "$options": "i"}
                 })
 
             match_stage = {"$and": match_conditions} if match_conditions else {}
@@ -547,7 +564,7 @@ class ClothingAndFoodService:
 
             def create_base_pipeline(collection_name, category_name, date_field):
                 price_sort_order = 1 if sortPrice == "ascending" else -1 if sortPrice == "descending" else None
-                
+
                 pipeline = [
                     {
                         "$addFields": {
@@ -571,7 +588,7 @@ class ClothingAndFoodService:
                     },
                     {"$unwind": "$brand_info"},
                     {"$match": match_stage} if match_conditions else {"$match": {}},
-                    {"$sort": {"price": price_sort_order}} if price_sort_order is not None 
+                    {"$sort": {"price": price_sort_order}} if price_sort_order is not None
                     else {"$sort": {date_field: -1 if latest else 1}},
                     {
                         "$project": {
@@ -585,6 +602,7 @@ class ClothingAndFoodService:
                             "discount_price": 1 if category_name == "food" else None,
                             "category": {"$literal": category_name},
                             "brand_name": "$brand_info.brand_name",
+                            "food_category": 1 if category_name == "food" else None,
                             "price": 1,
                             "isWishlist": {"$literal": False}
                         }
@@ -595,11 +613,11 @@ class ClothingAndFoodService:
             if category in ["clothing", "food"]:
                 collection = ClothingProduct if category == "clothing" else FoodProduct
                 date_field = "created_at" if category == "clothing" else "createdAt"
-                
+
                 pipeline = create_base_pipeline(f"{category}_brands", category, date_field)
                 total = await get_total_count(collection, pipeline)
                 data = await get_paginated_data(collection, pipeline, skip, limit)
-                
+
             elif category == "both":
                 # Create pipelines for both collections
                 clothing_pipeline = create_base_pipeline("clothing_brands", "clothing", "created_at")
@@ -610,37 +628,304 @@ class ClothingAndFoodService:
                 food_count = await get_total_count(FoodProduct, food_pipeline)
                 total = clothing_count + food_count
 
-                # Calculate pagination for each collection
-                half_limit = limit // 2
-                remainder = limit % 2
-
                 # Get paginated data from both collections
-                clothing_data = await get_paginated_data(
-                    ClothingProduct, 
-                    clothing_pipeline, 
-                    skip // 2, 
-                    half_limit + (remainder if skip % 2 == 0 else 0)
-                )
-                
-                food_data = await get_paginated_data(
-                    FoodProduct, 
-                    food_pipeline, 
-                    skip // 2, 
-                    half_limit + (remainder if skip % 2 == 1 else 0)
-                )
+                clothing_data = await get_paginated_data(ClothingProduct, clothing_pipeline, skip, limit // 2)
+                food_data = await get_paginated_data(FoodProduct, food_pipeline, skip, limit - (limit // 2))
 
                 # Combine and sort if needed
-                data = []
-                c_idx, f_idx = 0, 0
-                
-                while len(data) < limit and (c_idx < len(clothing_data) or f_idx < len(food_data)):
-                    if c_idx < len(clothing_data):
-                        data.append(clothing_data[c_idx])
-                        c_idx += 1
-                    if f_idx < len(food_data) and len(data) < limit:
-                        data.append(food_data[f_idx])
-                        f_idx += 1
+                data = clothing_data + food_data
+                if sortPrice:
+                    data.sort(
+                        key=lambda x: x["price"],
+                        reverse=(sortPrice == "descending")
+                    )
+            else:
+                raise ValueError("Invalid category. Must be 'clothing', 'food', or 'both'.")
 
+            return {
+                "currentPage": page,
+                "totalPages": ceil(total / limit),
+                "totalItems": total,
+                "products": data
+            }
+
+        except Exception as e:
+            raise RuntimeError(f"An error occurred while retrieving products: {str(e)}")
+        
+    @staticmethod
+    async def getProductFilterDetail(category: str):
+        """
+        Get filter details for products based on the provided category.
+        - If category is "clothing", returns clothing brand names and the highest original_price as maxPrice in clothing_products.
+        - If category is "food", returns food brand names, the highest original_price as maxPrice in food_products, and all food categories.
+        - If category is "both", returns both clothing and food brand names, and their respective highest original_prices.
+        """
+        try:
+            if category not in ["clothing", "food", "both"]:
+                raise ValueError("Invalid category. Must be 'clothing', 'food', or 'both'.")
+
+            # Helper to calculate the max original price from a collection (ensure valid number type)
+            async def get_max_price(collection, price_field="original_price"):
+                pipeline = [
+                    {
+                        "$match": {
+                            price_field: {"$type": "double"}  # Ensures price field is a number
+                        }
+                    },
+                    {
+                        "$group": {
+                            "_id": None,
+                            "maxPrice": {"$max": f"${price_field}"}  # Max on original_price field
+                        }
+                    }
+                ]
+                result = await collection.aggregate(pipeline).to_list(length=1)
+                return float(result[0]["maxPrice"]) if result and result[0]["maxPrice"] else None
+
+            # Helper to get all brand names for a collection
+            async def get_brand_names(collection):
+                pipeline = [
+                    {"$project": {"brand_name": 1}},
+                    {"$group": {"_id": None, "brandNames": {"$addToSet": "$brand_name"}}}
+                ]
+                result = await collection.aggregate(pipeline).to_list(length=1)
+                return result[0]["brandNames"] if result else []
+
+            # Helper to get all unique food categories
+            async def get_food_categories():
+                pipeline = [
+                    {"$group": {"_id": "$food_category"}},
+                    {"$project": {"_id": 0, "food_category": "$_id"}}
+                ]
+                result = await FoodProduct.aggregate(pipeline).to_list(length=None)
+                return [item["food_category"] for item in result]
+
+            # Prepare response
+            response = {}
+
+            # Fetch details for clothing
+            if category in ["clothing", "both"]:
+                clothing_brands = await get_brand_names(ClothingBrand)
+                clothing_max_price = await get_max_price(ClothingProduct)  # Get max original price from clothing products
+                response["clothing"] = {
+                    "brands": clothing_brands,
+                    "maxPrice": clothing_max_price
+                }
+
+            # Fetch details for food
+            if category in ["food", "both"]:
+                food_brands = await get_brand_names(FoodBrand)
+                food_max_price = await get_max_price(FoodProduct)  # Get max original price from food products
+                food_categories = await get_food_categories() if category == "food" else None
+                response["food"] = {
+                    "brands": food_brands,
+                    "maxPrice": food_max_price,
+                    "foodCategories": food_categories if food_categories else []
+                }
+
+            return response
+
+        except Exception as e:
+            raise RuntimeError(f"An error occurred while retrieving filter details: {str(e)}")
+        
+    
+    @staticmethod
+    async def get_all_products_by_user(
+        user_id: str,
+        category: str = None,
+        page: int = 1,
+        limit: int = 10,
+        search: str = None,
+        brand_name: str = None,
+        latest: bool = True,
+        sortPrice: str = None,
+        maxPrice: float = None,
+        food_category: str = None,
+    ):
+        try:
+            # Input validation
+            if page < 1:
+                page = 1
+            if limit < 1:
+                limit = 10
+            if sortPrice not in [None, "ascending", "descending"]:
+                raise ValueError("Invalid sortPrice. Must be 'ascending' or 'descending'.")
+            if maxPrice is not None and maxPrice < 0:
+                raise ValueError("Invalid maxPrice. Must be a non-negative number.")
+
+            # Calculate skip
+            skip = (page - 1) * limit
+
+            # Get user's wishlist items
+            user_wishlist = await Wishlist.find({"userId": DBRef("users", ObjectId(user_id))}).to_list(length=None)
+            
+            # Extract wishlist product IDs with their respective collections
+            wishlist_products = {}
+            for item in user_wishlist:
+                try:
+                    # Handle Beanie Link object
+                    if hasattr(item.productId, 'ref') and item.productId.ref:
+                        # Get the DBRef from the Link object
+                        db_ref = item.productId.ref
+                        if isinstance(db_ref, DBRef):
+                            wishlist_products[str(db_ref.id)] = db_ref.collection
+                        elif isinstance(db_ref, dict) and '$ref' in db_ref:
+                            wishlist_products[str(db_ref['$id']['$oid'])] = db_ref['$ref']
+                        else:
+                            print(f"Unexpected ref format in Link: {type(db_ref)}, value: {db_ref}")
+                    else:
+                        print(f"No ref found in Link object: {item.productId}")
+                except Exception as e:
+                    print(f"Error processing wishlist item: {e}")
+
+            print("Wishlist Products: ", wishlist_products)
+
+            print("\nDebug Information:")
+            for item in user_wishlist:
+                print(f"\nWishlist Item: {item}")
+                print(f"ProductId Type: {type(item.productId)}")
+                if hasattr(item.productId, 'ref'):
+                    print(f"ProductId Ref: {item.productId.ref}")
+                    if item.productId.ref:
+                        print(f"Ref Type: {type(item.productId.ref)}")
+
+            # Build match conditions
+            match_conditions = []
+            if search:
+                match_conditions.append({
+                    "$or": [
+                        {"title": {"$regex": search, "$options": "i"}},
+                        {"brand_info.brand_name": {"$regex": search, "$options": "i"}}
+                    ]
+                })
+            if brand_name:
+                match_conditions.append({
+                    "brand_info.brand_name": {"$regex": brand_name, "$options": "i"}
+                })
+            if maxPrice is not None:
+                match_conditions.append({
+                    "$or": [
+                        {"original_price": {"$lte": maxPrice}},
+                        {"sale_price": {"$lte": maxPrice}},
+                        {"discount_price": {"$lte": maxPrice}}
+                    ]
+                })
+            if food_category and category == "food":
+                match_conditions.append({
+                    "food_category": {"$regex": food_category, "$options": "i"}
+                })
+
+            match_stage = {"$and": match_conditions} if match_conditions else {}
+
+            async def get_paginated_data(collection, pipeline, skip_val, limit_val):
+                pipeline.extend([
+                    {"$skip": skip_val},
+                    {"$limit": limit_val}
+                ])
+                return await collection.aggregate(pipeline).to_list(length=None)
+
+            async def get_total_count(collection, pipeline):
+                count_pipeline = pipeline.copy()
+                count_pipeline.append({"$count": "total"})
+                result = await collection.aggregate(count_pipeline).to_list(length=None)
+                return result[0]["total"] if result else 0
+
+            def create_base_pipeline(collection_name, category_name, date_field):
+                price_sort_order = 1 if sortPrice == "ascending" else -1 if sortPrice == "descending" else None
+                expected_collection = f"{category_name}_products"
+
+                pipeline = [
+                    {
+                        "$addFields": {
+                            "brand_id": {"$ifNull": ["$brand_id.$id", None]},
+                            "price": {
+                                "$cond": [
+                                    {"$eq": [category_name, "clothing"]},
+                                    {"$ifNull": ["$sale_price", "$original_price"]},
+                                    {"$ifNull": ["$discount_price", "$original_price"]}
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "$lookup": {
+                            "from": collection_name,
+                            "localField": "brand_id",
+                            "foreignField": "_id",
+                            "as": "brand_info"
+                        }
+                    },
+                    {"$unwind": "$brand_info"},
+                    {"$match": match_stage} if match_conditions else {"$match": {}},
+                    {"$sort": {"price": price_sort_order}} if price_sort_order is not None
+                    else {"$sort": {date_field: -1 if latest else 1}},
+                    {
+                        "$project": {
+                            "_id": {"$toString": "$_id"},
+                            "title": 1,
+                            "product_page": 1,
+                            "product_url": 1,
+                            "image_url": 1,
+                            "original_price": 1,
+                            "sale_price": 1 if category_name == "clothing" else None,
+                            "discount_price": 1 if category_name == "food" else None,
+                            "category": {"$literal": category_name},
+                            "brand_name": "$brand_info.brand_name",
+                            "food_category": 1 if category_name == "food" else None,
+                            "price": 1,
+                            "isWishlist": {
+                                "$let": {
+                                    "vars": {
+                                        "product_id_str": {"$toString": "$_id"}
+                                    },
+                                    "in": {
+                                        "$in": [
+                                            "$$product_id_str",
+                                            {
+                                                "$map": {
+                                                    "input": {
+                                                        "$filter": {
+                                                            "input": {"$objectToArray": wishlist_products},
+                                                            "cond": {"$eq": ["$$this.v", expected_collection]}
+                                                        }
+                                                    },
+                                                    "as": "item",
+                                                    "in": "$$item.k"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+                return pipeline
+
+            if category in ["clothing", "food"]:
+                collection = ClothingProduct if category == "clothing" else FoodProduct
+                date_field = "created_at" if category == "clothing" else "createdAt"
+
+                pipeline = create_base_pipeline(f"{category}_brands", category, date_field)
+                total = await get_total_count(collection, pipeline)
+                data = await get_paginated_data(collection, pipeline, skip, limit)
+
+            elif category == "both":
+                # Create pipelines for both collections
+                clothing_pipeline = create_base_pipeline("clothing_brands", "clothing", "created_at")
+                food_pipeline = create_base_pipeline("food_brands", "food", "createdAt")
+
+                # Get counts
+                clothing_count = await get_total_count(ClothingProduct, clothing_pipeline)
+                food_count = await get_total_count(FoodProduct, food_pipeline)
+                total = clothing_count + food_count
+
+                # Get paginated data from both collections
+                clothing_data = await get_paginated_data(ClothingProduct, clothing_pipeline, skip, limit // 2)
+                food_data = await get_paginated_data(FoodProduct, food_pipeline, skip, limit - (limit // 2))
+
+                # Combine and sort if needed
+                data = clothing_data + food_data
                 if sortPrice:
                     data.sort(
                         key=lambda x: x["price"],
@@ -659,3 +944,4 @@ class ClothingAndFoodService:
         except Exception as e:
             raise RuntimeError(f"An error occurred while retrieving products: {str(e)}")
 
+        
