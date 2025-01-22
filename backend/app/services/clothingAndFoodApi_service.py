@@ -943,5 +943,621 @@ class ClothingAndFoodService:
 
         except Exception as e:
             raise RuntimeError(f"An error occurred while retrieving products: {str(e)}")
+        
+    @staticmethod
+    async def get_all_brands(category: str):
+        try:
+            clothing_brands = []
+            food_brands = []
+
+            # Fetch all clothing brands with product counts
+            if category in ["clothing", "both"]:
+                clothing_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "clothing_products",
+                            "localField": "_id",
+                            "foreignField": "brand_id.$id",
+                            "as": "products",
+                        }
+                    },
+                    {
+                        "$addFields": {
+                            "products_count": {"$size": "$products"}  # Calculate the size of the array here
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "brand_name": 1,
+                            "products_count": 1,
+                        }
+                    },
+                    {"$sort": {"products_count": -1}},
+                ]
+
+                clothing_brands = await ClothingBrand.aggregate(clothing_pipeline).to_list()
+                for brand in clothing_brands:
+                    brand["_id"] = str(brand["_id"])  # Convert ObjectId to string
+
+            # Fetch all food brands with product counts
+            if category in ["food", "both"]:
+                food_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "food_products",
+                            "localField": "_id",
+                            "foreignField": "brand_id.$id",
+                            "as": "products",
+                        }
+                    },
+                    {
+                        "$addFields": {
+                            "products_count": {"$size": "$products"}  # Calculate the size of the array here
+                        }
+                    },
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "brand_name": 1,
+                            "products_count": 1,
+                        }
+                    },
+                    {"$sort": {"products_count": -1}},
+                ]
+
+                food_brands = await FoodBrand.aggregate(food_pipeline).to_list()
+                for brand in food_brands:
+                    brand["_id"] = str(brand["_id"])  # Convert ObjectId to string
+
+            # Structure the response
+            result = {}
+            if category in ["clothing", "both"]:
+                result["clothingBrands"] = clothing_brands
+            if category in ["food", "both"]:
+                result["foodBrands"] = food_brands
+
+            return result
+        except Exception as e:
+            raise RuntimeError(f"Error fetching all brands: {str(e)}")
+        
+    # @staticmethod
+    # async def get_wishlisted_brands(category: str):
+    #     try:
+    #         clothing_wishlisted = []
+    #         food_wishlisted = []
+
+    #         # Fetch total wishlist count for calculating percentages
+    #         total_wishlist_count = await Wishlist.count()
+
+    #         # Fetch wishlisted clothing brands
+    #         if category in ["clothing", "both"]:
+    #             clothing_pipeline = [
+    #                 # First get all brands and their products
+    #                 {
+    #                     "$lookup": {
+    #                         "from": "clothing_products",
+    #                         "let": { "brandId": "$_id" },
+    #                         "pipeline": [
+    #                             {
+    #                                 "$match": {
+    #                                     "$expr": {
+    #                                         "$eq": ["$brand_id.$id", "$$brandId"]
+    #                                     }
+    #                                 }
+    #                             }
+    #                         ],
+    #                         "as": "products"
+    #                     }
+    #                 },
+    #                 # For each brand's products, look up wishlist entries
+    #                 {
+    #                     "$unwind": {
+    #                         "path": "$products",
+    #                         "preserveNullAndEmptyArrays": True
+    #                     }
+    #                 },
+    #                 {
+    #                     "$lookup": {
+    #                         "from": "wishlists",
+    #                         "let": { "productId": "$products._id" },
+    #                         "pipeline": [
+    #                             {
+    #                                 "$match": {
+    #                                     "$expr": {
+    #                                         "$eq": ["$productId.$id", "$$productId"]
+    #                                     }
+    #                                 }
+    #                             }
+    #                         ],
+    #                         "as": "product_wishlists"
+    #                     }
+    #                 },
+    #                 # Group back by brand to consolidate results
+    #                 {
+    #                     "$group": {
+    #                         "_id": "$_id",
+    #                         "brand_name": { "$first": "$brand_name" },
+    #                         "all_wishlists": {
+    #                             "$push": "$product_wishlists"
+    #                         }
+    #                     }
+    #                 },
+    #                 # Flatten the nested arrays of wishlists
+    #                 {
+    #                     "$addFields": {
+    #                         "flattened_wishlists": {
+    #                             "$reduce": {
+    #                                 "input": "$all_wishlists",
+    #                                 "initialValue": [],
+    #                                 "in": { "$concatArrays": ["$$value", "$$this"] }
+    #                             }
+    #                         }
+    #                     }
+    #                 },
+    #                 # Calculate wishlist metrics
+    #                 {
+    #                     "$addFields": {
+    #                         "wishlist_count": { "$size": "$flattened_wishlists" },
+    #                         "wishlist_percent": {
+    #                             "$cond": [
+    #                                 { "$gt": [total_wishlist_count, 0] },
+    #                                 {
+    #                                     "$multiply": [
+    #                                         { 
+    #                                             "$divide": [
+    #                                                 { "$size": "$flattened_wishlists" },
+    #                                                 total_wishlist_count
+    #                                             ]
+    #                                         },
+    #                                         100
+    #                                     ]
+    #                                 },
+    #                                 0
+    #                             ]
+    #                         }
+    #                     }
+    #                 },
+    #                 # Final projection
+    #                 {
+    #                     "$project": {
+    #                         "_id": 1,
+    #                         "brand_name": 1,
+    #                         "wishlist_count": 1,
+    #                         "wishlist_percent": 1
+    #                     }
+    #                 },
+    #                 # Sort by wishlist count
+    #                 { 
+    #                     "$sort": { 
+    #                         "wishlist_count": -1 
+    #                     } 
+    #                 }
+    #             ]
+
+    #             # Execute the pipeline
+    #             clothing_wishlisted = await ClothingBrand.aggregate(clothing_pipeline).to_list()
+                
+    #             # Convert ObjectId to string for JSON serialization
+    #             for brand in clothing_wishlisted:
+    #                 brand["_id"] = str(brand["_id"])
+
+    #         # Handle food brands
+    #         if category in ["food", "both"]:
+    #             food_pipeline = [
+    #                 # First get all brands and their products
+    #                 {
+    #                     "$lookup": {
+    #                         "from": "food_products",
+    #                         "let": { "brandId": "$_id" },
+    #                         "pipeline": [
+    #                             {
+    #                                 "$match": {
+    #                                     "$expr": {
+    #                                         "$eq": ["$brand_id.$id", "$$brandId"]
+    #                                     }
+    #                                 }
+    #                             }
+    #                         ],
+    #                         "as": "products"
+    #                     }
+    #                 },
+    #                 # For each brand's products, look up wishlist entries
+    #                 {
+    #                     "$unwind": {
+    #                         "path": "$products",
+    #                         "preserveNullAndEmptyArrays": True
+    #                     }
+    #                 },
+    #                 {
+    #                     "$lookup": {
+    #                         "from": "wishlists",
+    #                         "let": { "productId": "$products._id" },
+    #                         "pipeline": [
+    #                             {
+    #                                 "$match": {
+    #                                     "$expr": {
+    #                                         "$eq": ["$productId.$id", "$$productId"]
+    #                                     }
+    #                                 }
+    #                             }
+    #                         ],
+    #                         "as": "product_wishlists"
+    #                     }
+    #                 },
+    #                 # Group back by brand to consolidate results
+    #                 {
+    #                     "$group": {
+    #                         "_id": "$_id",
+    #                         "brand_name": { "$first": "$brand_name" },
+    #                         "all_wishlists": {
+    #                             "$push": "$product_wishlists"
+    #                         }
+    #                     }
+    #                 },
+    #                 # Flatten the nested arrays of wishlists
+    #                 {
+    #                     "$addFields": {
+    #                         "flattened_wishlists": {
+    #                             "$reduce": {
+    #                                 "input": "$all_wishlists",
+    #                                 "initialValue": [],
+    #                                 "in": { "$concatArrays": ["$$value", "$$this"] }
+    #                             }
+    #                         }
+    #                     }
+    #                 },
+    #                 # Calculate wishlist metrics
+    #                 {
+    #                     "$addFields": {
+    #                         "wishlist_count": { "$size": "$flattened_wishlists" },
+    #                         "wishlist_percent": {
+    #                             "$cond": [
+    #                                 { "$gt": [total_wishlist_count, 0] },
+    #                                 {
+    #                                     "$multiply": [
+    #                                         { 
+    #                                             "$divide": [
+    #                                                 { "$size": "$flattened_wishlists" },
+    #                                                 total_wishlist_count
+    #                                             ]
+    #                                         },
+    #                                         100
+    #                                     ]
+    #                                 },
+    #                                 0
+    #                             ]
+    #                         }
+    #                     }
+    #                 },
+    #                 # Final projection
+    #                 {
+    #                     "$project": {
+    #                         "_id": 1,
+    #                         "brand_name": 1,
+    #                         "wishlist_count": 1,
+    #                         "wishlist_percent": 1
+    #                     }
+    #                 },
+    #                 # Sort by wishlist count
+    #                 { 
+    #                     "$sort": { 
+    #                         "wishlist_count": -1 
+    #                     } 
+    #                 }
+    #             ]
+                
+    #             # Execute the pipeline
+    #             food_wishlisted = await FoodBrand.aggregate(food_pipeline).to_list()
+                
+    #             # Convert ObjectId to string for JSON serialization
+    #             for brand in food_wishlisted:
+    #                 brand["_id"] = str(brand["_id"])
+
+    #         # Structure the response
+    #         result = {}
+    #         if category in ["clothing", "both"]:
+    #             result["clothingWishlistedBrands"] = clothing_wishlisted
+    #         if category in ["food", "both"]:
+    #             result["foodWishlistedBrands"] = food_wishlisted
+
+    #         return result
+    #     except Exception as e:
+    #         raise RuntimeError(f"Error fetching wishlisted brands: {str(e)}")
+
+    @staticmethod
+    async def get_wishlisted_brands(category: str):
+        try:
+            clothing_wishlisted = []
+            food_wishlisted = []
+
+            # Fetch wishlisted clothing brands
+            if category in ["clothing", "both"]:
+                # Get total clothing wishlist count
+                clothing_wishlist_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "clothing_products",
+                            "localField": "productId.$id",
+                            "foreignField": "_id",
+                            "as": "product"
+                        }
+                    },
+                    {
+                        "$match": {
+                            "product": { "$ne": [] }
+                        }
+                    }
+                ]
+                clothing_wishlist_count = len(await Wishlist.aggregate(clothing_wishlist_pipeline).to_list())
+
+                clothing_pipeline = [
+                    # First get all brands and their products
+                    {
+                        "$lookup": {
+                            "from": "clothing_products",
+                            "let": { "brandId": "$_id" },
+                            "pipeline": [
+                                {
+                                    "$match": {
+                                        "$expr": {
+                                            "$eq": ["$brand_id.$id", "$$brandId"]
+                                        }
+                                    }
+                                }
+                            ],
+                            "as": "products"
+                        }
+                    },
+                    # For each brand's products, look up wishlist entries
+                    {
+                        "$unwind": {
+                            "path": "$products",
+                            "preserveNullAndEmptyArrays": True
+                        }
+                    },
+                    {
+                        "$lookup": {
+                            "from": "wishlists",
+                            "let": { "productId": "$products._id" },
+                            "pipeline": [
+                                {
+                                    "$match": {
+                                        "$expr": {
+                                            "$eq": ["$productId.$id", "$$productId"]
+                                        }
+                                    }
+                                }
+                            ],
+                            "as": "product_wishlists"
+                        }
+                    },
+                    # Group back by brand to consolidate results
+                    {
+                        "$group": {
+                            "_id": "$_id",
+                            "brand_name": { "$first": "$brand_name" },
+                            "all_wishlists": {
+                                "$push": "$product_wishlists"
+                            }
+                        }
+                    },
+                    # Flatten the nested arrays of wishlists
+                    {
+                        "$addFields": {
+                            "flattened_wishlists": {
+                                "$reduce": {
+                                    "input": "$all_wishlists",
+                                    "initialValue": [],
+                                    "in": { "$concatArrays": ["$$value", "$$this"] }
+                                }
+                            }
+                        }
+                    },
+                    # Calculate wishlist metrics
+                    {
+                        "$addFields": {
+                            "wishlist_count": { "$size": "$flattened_wishlists" },
+                            "wishlist_percent": {
+                                "$cond": [
+                                    { "$gt": [clothing_wishlist_count, 0] },
+                                    {
+                                        "$round": [
+                                            {
+                                                "$multiply": [
+                                                    {
+                                                        "$divide": [
+                                                            { "$size": "$flattened_wishlists" },
+                                                            clothing_wishlist_count
+                                                        ]
+                                                    },
+                                                    100
+                                                ]
+                                            },
+                                            0  # Specify 0 to round to the nearest integer
+                                        ]
+                                    },
+                                    0
+                                ]
+                            }
+                        }
+                    },
+                    # Filter out brands with no wishlist items
+                    {
+                        "$match": {
+                            "wishlist_count": { "$gt": 0 }
+                        }
+                    },
+                    # Final projection
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "brand_name": 1,
+                            "wishlist_count": 1,
+                            "wishlist_percent": 1
+                        }
+                    },
+                    # Sort by wishlist count
+                    { 
+                        "$sort": { 
+                            "wishlist_count": -1 
+                        } 
+                    }
+                ]
+
+                clothing_wishlisted = await ClothingBrand.aggregate(clothing_pipeline).to_list()
+                for brand in clothing_wishlisted:
+                    brand["_id"] = str(brand["_id"])
+
+            # Handle food brands
+            if category in ["food", "both"]:
+                # Get total food wishlist count
+                food_wishlist_pipeline = [
+                    {
+                        "$lookup": {
+                            "from": "food_products",
+                            "localField": "productId.$id",
+                            "foreignField": "_id",
+                            "as": "product"
+                        }
+                    },
+                    {
+                        "$match": {
+                            "product": { "$ne": [] }
+                        }
+                    }
+                ]
+                food_wishlist_count = len(await Wishlist.aggregate(food_wishlist_pipeline).to_list())
+
+                food_pipeline = [
+                    # First get all brands and their products
+                    {
+                        "$lookup": {
+                            "from": "food_products",
+                            "let": { "brandId": "$_id" },
+                            "pipeline": [
+                                {
+                                    "$match": {
+                                        "$expr": {
+                                            "$eq": ["$brand_id.$id", "$$brandId"]
+                                        }
+                                    }
+                                }
+                            ],
+                            "as": "products"
+                        }
+                    },
+                    # For each brand's products, look up wishlist entries
+                    {
+                        "$unwind": {
+                            "path": "$products",
+                            "preserveNullAndEmptyArrays": True
+                        }
+                    },
+                    {
+                        "$lookup": {
+                            "from": "wishlists",
+                            "let": { "productId": "$products._id" },
+                            "pipeline": [
+                                {
+                                    "$match": {
+                                        "$expr": {
+                                            "$eq": ["$productId.$id", "$$productId"]
+                                        }
+                                    }
+                                }
+                            ],
+                            "as": "product_wishlists"
+                        }
+                    },
+                    # Group back by brand to consolidate results
+                    {
+                        "$group": {
+                            "_id": "$_id",
+                            "brand_name": { "$first": "$brand_name" },
+                            "all_wishlists": {
+                                "$push": "$product_wishlists"
+                            }
+                        }
+                    },
+                    # Flatten the nested arrays of wishlists
+                    {
+                        "$addFields": {
+                            "flattened_wishlists": {
+                                "$reduce": {
+                                    "input": "$all_wishlists",
+                                    "initialValue": [],
+                                    "in": { "$concatArrays": ["$$value", "$$this"] }
+                                }
+                            }
+                        }
+                    },
+                    # Calculate wishlist metrics
+                    {
+                        "$addFields": {
+                            "wishlist_count": { "$size": "$flattened_wishlists" },
+                            "wishlist_percent": {
+                                "$cond": [
+                                    { "$gt": [food_wishlist_count, 0] },
+                                    {
+                                        "$round": [
+                                            {
+                                                "$multiply": [
+                                                    {
+                                                        "$divide": [
+                                                            { "$size": "$flattened_wishlists" },
+                                                            food_wishlist_count
+                                                        ]
+                                                    },
+                                                    100
+                                                ]
+                                            },
+                                            0  # Specify 0 to round to the nearest integer
+                                        ]
+                                    },
+                                    0
+                                ]
+                            }
+                        }
+                    },
+                    # Filter out brands with no wishlist items
+                    {
+                        "$match": {
+                            "wishlist_count": { "$gt": 0 }
+                        }
+                    },
+                    # Final projection
+                    {
+                        "$project": {
+                            "_id": 1,
+                            "brand_name": 1,
+                            "wishlist_count": 1,
+                            "wishlist_percent": 1
+                        }
+                    },
+                    # Sort by wishlist count
+                    { 
+                        "$sort": { 
+                            "wishlist_count": -1 
+                        } 
+                    }
+                ]
+                
+                food_wishlisted = await FoodBrand.aggregate(food_pipeline).to_list()
+                for brand in food_wishlisted:
+                    brand["_id"] = str(brand["_id"])
+
+            # Structure the response
+            result = {}
+            if category in ["clothing", "both"]:
+                result["clothingWishlistedBrands"] = clothing_wishlisted
+            if category in ["food", "both"]:
+                result["foodWishlistedBrands"] = food_wishlisted
+
+            return result
+        except Exception as e:
+            raise RuntimeError(f"Error fetching wishlisted brands: {str(e)}")
+
+
 
         
