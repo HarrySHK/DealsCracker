@@ -1,4 +1,4 @@
-from app.schemas.user_schema import Signup, CreateProfile
+from app.schemas.user_schema import Signup, CreateProfile, UpdateProfile
 from app.models.user_model import User, Location
 from app.core.security import get_password,verify_password
 from bson import ObjectId
@@ -225,6 +225,61 @@ class UserService:
         await user.save()
 
         return {
+            "message": "Profile created successfully",
+            "profile": {
+                "_id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "location": user.location.dict() if user.location else None,
+                "profilePicture": user.profilePicture,
+            },
+        }
+    @staticmethod
+    async def get_profile(user_id: str):
+        # Validate user existence
+        user = await User.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise ValueError("User not found")
+
+        # Construct the profile data
+        profile = {
+            "_id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "location": user.location.dict() if user.location else None,
+            "profilePicture": user.profilePicture,
+            "isProfileCompleted": user.isProfileCompleted,
+        }
+        return profile
+    @staticmethod
+    async def update_profile(user_id: str, update_data: UpdateProfile, profilePicture: UploadFile = None):
+        # Validate user existence
+        user = await User.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise ValueError("User not found")
+
+        # Update username if provided
+        if update_data.username:
+            user.username = update_data.username
+
+        # Update location if provided
+        if update_data.location:
+            # Properly create a Location object from latitude and longitude
+            user.location = Location(
+                latitude=update_data.location.latitude,
+                longitude=update_data.location.longitude
+            )
+
+        # Upload and update profile picture if provided
+        if profilePicture:
+            uploaded_profile_picture_url = await upload_to_cloudinary(profilePicture)
+            user.profilePicture = uploaded_profile_picture_url
+
+        # Update the updatedAt field and save the updated profile
+        user.updatedAt = datetime.utcnow()
+        await user.save()
+
+        return {
             "message": "Profile updated successfully",
             "profile": {
                 "_id": str(user.id),
@@ -234,6 +289,8 @@ class UserService:
                 "profilePicture": user.profilePicture,
             },
         }
+
+
     @staticmethod
     async def authenticate(email: str, password: str) ->  User | None:
         user = await UserService.get_user_by_email(email=email)

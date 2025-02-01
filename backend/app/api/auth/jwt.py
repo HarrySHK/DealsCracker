@@ -23,18 +23,6 @@ async def login(form_data: LoginRequestSchema):
             detail=error
         )
     
-    # return {
-    #     "access_token": create_access_token(str(user.id)),
-    #     "refresh_token": create_refresh_token(str(user.id)),
-    #     "userDetails": {
-    #         "_id": str(user.id),
-    #         "username": user.username,
-    #         "email": user.email,
-    #         "role": user.role,
-    #         "location": user.location,
-    #         "profilePicture": user.profilePicture
-    #     }
-    # }
     # Generate tokens
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))

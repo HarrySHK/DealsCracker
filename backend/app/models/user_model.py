@@ -23,6 +23,8 @@ class User(Document):
     profilePicture: Optional[str] = None
     role: Role = Role.USER
     isProfileCompleted: bool = False
+    createdAt: datetime = Field(default_factory=datetime.utcnow, description="The creation date of the document")
+    updatedAt: datetime = Field(default_factory=datetime.utcnow, description="The last update date of the document")
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

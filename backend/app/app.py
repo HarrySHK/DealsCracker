@@ -8,10 +8,16 @@ from app.models.clothing_product_model import ClothingProduct
 from app.models.food_brand_model import FoodBrand
 from app.models.food_product_model import FoodProduct
 from app.models.otp_model import Otp
+from app.models.wishlist_model import Wishlist
+from app.models.contact_us_model import ContactUs
 from app.api.api_v1.router import router
 from app.services.clothing_service import schedule_clothing_scraping
 from app.services.food_service import schedule_food_scraping
+from app.services.wishlist_service import schedule_wishlist
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+
+logging.getLogger("apscheduler").setLevel(logging.ERROR)
 
 app = FastAPI(
     title = settings.PROJECT_NAME,
@@ -38,11 +44,14 @@ async def app_init():
             ClothingProduct,
             FoodBrand,
             FoodProduct,
-            Otp
+            Otp,
+            Wishlist,
+            ContactUs
         ]
     )
     print("Database connection initialized and models loaded.")
     schedule_clothing_scraping()
     schedule_food_scraping()
-
+    schedule_wishlist()
+    
 app.include_router(router,prefix=settings.API_VERSION)

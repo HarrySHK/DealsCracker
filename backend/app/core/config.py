@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "FARMSTACK_CRUD"    
     # Database
     MONGO_CONNECTION_STRING: str = config("MONGO_CONNECTION_STRING", cast=str)    
+    # Google Map API
+    GOOGLE_MAPS_API_KEY: str = config("GOOGLE_MAPS_API_KEY", cast=str)    
     # Cloudinary Creds
     CLOUDINARY_CLOUD_NAME: str = config("CLOUDINARY_CLOUD_NAME", cast=str)    
     CLOUDINARY_API_KEY: str = config("CLOUDINARY_API_KEY", cast=str)    

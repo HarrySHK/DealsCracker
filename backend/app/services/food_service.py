@@ -817,6 +817,17 @@ class FoodService:
 
         brand_id = brand.id
 
+        def parse_price(price_str):
+            if price_str:
+                # Remove non-numeric prefixes like "From" and unwanted characters
+                cleaned_price = price_str.replace("PKR", "").replace(",", "").strip()
+                # Extract the first numeric portion using regular expressions
+                import re
+                match = re.search(r'\d+(\.\d+)?', cleaned_price)
+                if match:
+                    return float(match.group(0))  # Convert the first numeric match to float
+            return None
+
         async def save_html_content():
             url = "https://www.pizzapoint.com.pk/"
             webbrowser.open(url)
@@ -894,15 +905,15 @@ class FoodService:
                     if price_wrapper:
                         original_price_tag = price_wrapper.find('span', style='text-decoration-line: line-through;')
                         if original_price_tag:
-                            product['original_price'] = original_price_tag.get_text(strip=True).replace('Rs.', '').strip()
+                            product['original_price'] = parse_price(original_price_tag.get_text(strip=True).replace('Rs.', '').strip())
 
                         discount_price_tag = price_wrapper.find('span', class_='normal-price has-discount')
                         if discount_price_tag:
-                            product['discount_price'] = discount_price_tag.get_text(strip=True).replace('Rs.', '').strip()
+                            product['discount_price'] = parse_price(discount_price_tag.get_text(strip=True).replace('Rs.', '').strip())
                         else:
                             price_tag = price_wrapper.find('span', class_='normal-price')
                             if price_tag:
-                                product['original_price'] = price_tag.get_text(strip=True).replace('Rs.', '').strip()
+                                product['original_price'] = parse_price(price_tag.get_text(strip=True).replace('Rs.', '').strip())
                                 product['discount_price'] = None
 
                     img_tag = div.find('img', class_='rounded-0')
@@ -1215,12 +1226,12 @@ class FoodService:
 
 def schedule_food_scraping():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(FoodService.getKababjeesFriedData, "interval", minutes=11111)
-    scheduler.add_job(FoodService.getAngeethiData, "interval", minutes=10000)
-    scheduler.add_job(FoodService.getDeliziaData, "interval", minutes=10000)
-    scheduler.add_job(FoodService.getFoodsinnData, "interval", minutes=10000)
-    scheduler.add_job(FoodService.getGinsoyData, "interval", minutes=10000)
-    scheduler.add_job(FoodService.getPizzaPointData, "interval", minutes=10000)
+    scheduler.add_job(FoodService.getKababjeesFriedData, "interval", minutes=1000)
+    scheduler.add_job(FoodService.getAngeethiData, "interval", minutes=1000)
+    scheduler.add_job(FoodService.getDeliziaData, "interval", minutes=1000)
+    scheduler.add_job(FoodService.getFoodsinnData, "interval", minutes=1000)
+    scheduler.add_job(FoodService.getGinsoyData, "interval", minutes=1000)
+    scheduler.add_job(FoodService.getPizzaPointData, "interval", minutes=1000)
     scheduler.add_job(FoodService.getHotNSpicyData, "interval", minutes=10000)
     scheduler.add_job(FoodService.getAllBrandsBanner, "interval", minutes=10001)
     scheduler.start()
