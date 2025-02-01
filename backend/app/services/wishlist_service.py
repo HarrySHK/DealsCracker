@@ -134,6 +134,13 @@ class WishlistService:
                             "Food"
                         ]
                     },
+                     "productId": {  # Extract _id as productId
+                    "$cond": [
+                        {"$gt": [{"$size": "$clothing_product"}, 0]},
+                        {"$toString": {"$arrayElemAt": ["$clothing_product._id", 0]}},
+                        {"$toString": {"$arrayElemAt": ["$food_product._id", 0]}}
+                    ]
+                },
                     "createdAt": 1 ,
                     "lastKnownPrices": 1 
                 }
