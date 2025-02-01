@@ -9,6 +9,7 @@ from app.models.food_brand_model import FoodBrand
 from app.models.food_product_model import FoodProduct
 from app.models.otp_model import Otp
 from app.models.wishlist_model import Wishlist
+from app.models.contact_us_model import ContactUs
 from app.api.api_v1.router import router
 from app.services.clothing_service import schedule_clothing_scraping
 from app.services.food_service import schedule_food_scraping
@@ -44,7 +45,8 @@ async def app_init():
             FoodBrand,
             FoodProduct,
             Otp,
-            Wishlist
+            Wishlist,
+            ContactUs
         ]
     )
     print("Database connection initialized and models loaded.")
