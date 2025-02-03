@@ -635,8 +635,12 @@ class ClothingAndFoodService:
                 # Combine and sort if needed
                 data = clothing_data + food_data
                 if sortPrice:
+                    # data.sort(
+                    #     key=lambda x: x["price"],
+                    #     reverse=(sortPrice == "descending")
+                    # )
                     data.sort(
-                        key=lambda x: x["price"],
+                        key=lambda x: float(x["price"]) if isinstance(x["price"], (int, float, str)) and x["price"] else 0,
                         reverse=(sortPrice == "descending")
                     )
             else:
@@ -928,7 +932,7 @@ class ClothingAndFoodService:
                 data = clothing_data + food_data
                 if sortPrice:
                     data.sort(
-                        key=lambda x: x["price"],
+                        key=lambda x: float(x["price"]) if isinstance(x["price"], (int, float, str)) and x["price"] else 0,
                         reverse=(sortPrice == "descending")
                     )
             else:
