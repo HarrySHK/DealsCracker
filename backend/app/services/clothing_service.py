@@ -324,6 +324,16 @@ class ClothingService:
         base_url = "https://www.junaidjamshed.com/sale.html?p="
         num_pages = 6  # Adjust as per the number of pages to scrape
 
+        def clean_price(price_str):
+            """Extracts numeric value from a price string and converts it to float."""
+            if price_str:
+                cleaned_price = re.sub(r"[^\d.]", "", price_str)  # Remove non-numeric characters except '.'
+                try:
+                    return float(cleaned_price) if cleaned_price else None
+                except ValueError:
+                    return None
+            return None
+
         for page in range(1, num_pages + 1):
             url = f"{base_url}{page}"
             try:
@@ -360,11 +370,11 @@ class ClothingService:
                 if price_box:
                     special_price_tag = price_box.find("span", {"data-price-type": "finalPrice"})
                     if special_price_tag:
-                        product_info["sale_price"] = special_price_tag.get_text(strip=True)
+                        product_info["sale_price"] = clean_price(special_price_tag.get_text(strip=True))
 
                     old_price_tag = price_box.find("span", {"data-price-type": "oldPrice"})
                     if old_price_tag:
-                        product_info["original_price"] = old_price_tag.get_text(strip=True)
+                        product_info["original_price"] = clean_price(old_price_tag.get_text(strip=True))
 
                 # Validation: Skip saving if any field is missing
                 if not all(product_info.values()):
@@ -1084,19 +1094,19 @@ class ClothingService:
 
 def schedule_clothing_scraping():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(ClothingService.getKhaadiData, "interval", minutes=10000, id="khaadi_scraping")
-    scheduler.add_job(ClothingService.getDhanakData, "interval", minutes=1000, id="dhanak_scraping")
-    scheduler.add_job(ClothingService.getAlkaramData, "interval", minutes=1000, id="alkaram_scraping")
-    scheduler.add_job(ClothingService.getJjData, "interval", minutes=1000, id="jj_scraping")
-    scheduler.add_job(ClothingService.getOutfittersData, "interval", minutes=1000, id="outfitters_scraping")
-    scheduler.add_job(ClothingService.getSayaData, "interval", minutes=1000, id="saya_scraping")
-    scheduler.add_job(ClothingService.getZeenData, "interval", minutes=1000, id="zeen_scraping")
-    scheduler.add_job(ClothingService.getKhaadiBanner, "interval", minutes=1000, id="khaadiBanner_scraping")
-    scheduler.add_job(ClothingService.getDhanakBanner, "interval", minutes=1000, id="dhanakBanner_scraping")
-    scheduler.add_job(ClothingService.getOutfittersBanner, "interval", minutes=1000, id="outfittersBanner_scraping")
-    scheduler.add_job(ClothingService.getJjBanner, "interval", minutes=1000, id="JjBanner_scraping")
-    scheduler.add_job(ClothingService.getSayaBanner, "interval", minutes=1000, id="sayaBanner_scraping")
-    scheduler.add_job(ClothingService.getAlkaramBanner, "interval", minutes=1000, id="alkaramBanner_scraping")
-    scheduler.add_job(ClothingService.getZeenBanner, "interval", minutes=1000, id="zeenBanner_scraping")
+    scheduler.add_job(ClothingService.getKhaadiData, "interval", minutes=720, id="khaadi_scraping")
+    scheduler.add_job(ClothingService.getDhanakData, "interval", minutes=750, id="dhanak_scraping")
+    scheduler.add_job(ClothingService.getAlkaramData, "interval", minutes=780, id="alkaram_scraping")
+    scheduler.add_job(ClothingService.getJjData, "interval", minutes=810, id="jj_scraping")
+    scheduler.add_job(ClothingService.getOutfittersData, "interval", minutes=840, id="outfitters_scraping")
+    scheduler.add_job(ClothingService.getSayaData, "interval", minutes=870, id="saya_scraping")
+    scheduler.add_job(ClothingService.getZeenData, "interval", minutes=900, id="zeen_scraping")
+    scheduler.add_job(ClothingService.getKhaadiBanner, "interval", minutes=930, id="khaadiBanner_scraping")
+    scheduler.add_job(ClothingService.getDhanakBanner, "interval", minutes=960, id="dhanakBanner_scraping")
+    scheduler.add_job(ClothingService.getOutfittersBanner, "interval", minutes=990, id="outfittersBanner_scraping")
+    scheduler.add_job(ClothingService.getJjBanner, "interval", minutes=1020, id="JjBanner_scraping")
+    scheduler.add_job(ClothingService.getSayaBanner, "interval", minutes=1050, id="sayaBanner_scraping")
+    scheduler.add_job(ClothingService.getAlkaramBanner, "interval", minutes=1080, id="alkaramBanner_scraping")
+    scheduler.add_job(ClothingService.getZeenBanner, "interval", minutes=1110, id="zeenBanner_scraping")
     scheduler.start()
     print("Clothing Scheduler Started!")

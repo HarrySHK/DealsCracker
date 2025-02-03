@@ -637,6 +637,7 @@ class FoodService:
 
         print("Foods Inn data scraping and saving completed!")
         os.remove(html_file)
+
     @staticmethod
     async def getGinsoyData():
         # Step 1: Save or get the Ginsoy brand in the database
@@ -1226,14 +1227,14 @@ class FoodService:
 
 def schedule_food_scraping():
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(FoodService.getKababjeesFriedData, "interval", minutes=1000)
-    scheduler.add_job(FoodService.getAngeethiData, "interval", minutes=1000)
-    scheduler.add_job(FoodService.getDeliziaData, "interval", minutes=1000)
-    scheduler.add_job(FoodService.getFoodsinnData, "interval", minutes=1000)
-    scheduler.add_job(FoodService.getGinsoyData, "interval", minutes=1000)
-    scheduler.add_job(FoodService.getPizzaPointData, "interval", minutes=1000)
-    scheduler.add_job(FoodService.getHotNSpicyData, "interval", minutes=10000)
-    scheduler.add_job(FoodService.getAllBrandsBanner, "interval", minutes=10001)
+    scheduler.add_job(FoodService.getKababjeesFriedData, "interval", minutes=720)
+    scheduler.add_job(FoodService.getAngeethiData, "interval", minutes=750)
+    scheduler.add_job(FoodService.getDeliziaData, "interval", minutes=780)
+    scheduler.add_job(FoodService.getFoodsinnData, "interval", minutes=810)
+    scheduler.add_job(FoodService.getGinsoyData, "interval", minutes=840)
+    scheduler.add_job(FoodService.getPizzaPointData, "interval", minutes=870)
+    scheduler.add_job(FoodService.getHotNSpicyData, "interval", minutes=900)
+    scheduler.add_job(FoodService.getAllBrandsBanner, "interval", minutes=930)
     scheduler.start()
     print("Food Scheduler Started!")
 
