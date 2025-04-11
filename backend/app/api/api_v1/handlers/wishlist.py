@@ -34,7 +34,7 @@ async def toggle_wishlist_item(
 @wishlist_router.get("/getUserWishlist", summary="Get user's wishlist")
 async def get_user_wishlist(current_user: User = Depends(get_current_user)):
     try:
-        # Fetch the user's wishlist using the service
+        # Fetch the all user's wishlist using the service
         wishlist = await WishlistService.get_user_wishlist(user_id=str(current_user.id))
         return {"wishlist": wishlist}
     except ValueError as e:
